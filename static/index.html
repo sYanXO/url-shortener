@@ -1,0 +1,372 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>URL Shortener</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Inter', system-ui, -apple-system, sans-serif;
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 1rem;
+      background: #0b0e1a;
+      background-image:
+        radial-gradient(ellipse at 20% 50%, rgba(99,102,241,0.12) 0%, transparent 60%),
+        radial-gradient(ellipse at 80% 50%, rgba(168,85,247,0.10) 0%, transparent 60%),
+        radial-gradient(ellipse at 50% 0%, rgba(99,102,241,0.06) 0%, transparent 50%);
+      position: relative;
+      overflow-x: hidden;
+    }
+
+    body::before {
+      content: '';
+      position: fixed;
+      inset: 0;
+      background-image:
+        repeating-linear-gradient(0deg, transparent, transparent 40px, rgba(255,255,255,0.012) 40px, rgba(255,255,255,0.012) 41px),
+        repeating-linear-gradient(90deg, transparent, transparent 40px, rgba(255,255,255,0.012) 40px, rgba(255,255,255,0.012) 41px);
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    .card {
+      position: relative;
+      z-index: 1;
+      background: rgba(18, 22, 42, 0.85);
+      backdrop-filter: blur(24px);
+      -webkit-backdrop-filter: blur(24px);
+      border: 1px solid rgba(255,255,255,0.06);
+      border-radius: 24px;
+      padding: 2.5rem 2rem 2rem;
+      width: 100%;
+      max-width: 480px;
+      box-shadow:
+        0 24px 80px rgba(0,0,0,0.5),
+        0 0 0 1px rgba(255,255,255,0.02) inset;
+      animation: fadeUp 0.6s ease-out;
+    }
+
+    @keyframes fadeUp {
+      from { opacity: 0; transform: translateY(20px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+
+    .logo {
+      display: flex;
+      align-items: center;
+      gap: 0.65rem;
+      margin-bottom: 0.35rem;
+    }
+
+    .logo-icon {
+      width: 36px;
+      height: 36px;
+      border-radius: 10px;
+      background: linear-gradient(135deg, #6366f1, #a855f7);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.15rem;
+      color: #fff;
+      font-weight: 700;
+    }
+
+    .logo h1 {
+      font-size: 1.45rem;
+      font-weight: 700;
+      color: #f1f5f9;
+      letter-spacing: -0.02em;
+    }
+
+    .sub {
+      color: #64748b;
+      font-size: 0.9rem;
+      margin-bottom: 1.75rem;
+      margin-left: calc(36px + 0.65rem);
+    }
+
+    form {
+      display: flex;
+      flex-direction: column;
+      gap: 0.75rem;
+    }
+
+    .input-wrap {
+      position: relative;
+    }
+
+    .input-wrap svg {
+      position: absolute;
+      left: 14px;
+      top: 50%;
+      transform: translateY(-50%);
+      width: 18px;
+      height: 18px;
+      color: #475569;
+      pointer-events: none;
+      transition: color 0.2s;
+    }
+
+    .input-wrap:focus-within svg { color: #818cf8; }
+
+    input[type="url"] {
+      width: 100%;
+      padding: 0.85rem 1rem 0.85rem 42px;
+      border-radius: 12px;
+      border: 1.5px solid rgba(255,255,255,0.08);
+      background: rgba(15, 23, 42, 0.6);
+      color: #e2e8f0;
+      font-size: 0.95rem;
+      font-family: inherit;
+      outline: none;
+      transition: border-color 0.2s, box-shadow 0.2s;
+    }
+
+    input[type="url"]::placeholder { color: #475569; }
+
+    input[type="url"]:focus {
+      border-color: rgba(99,102,241,0.5);
+      box-shadow: 0 0 0 3px rgba(99,102,241,0.15);
+    }
+
+    button[type="submit"] {
+      width: 100%;
+      padding: 0.82rem;
+      border: none;
+      border-radius: 12px;
+      background: linear-gradient(135deg, #6366f1, #7c3aed);
+      color: #fff;
+      font-size: 0.95rem;
+      font-weight: 600;
+      font-family: inherit;
+      cursor: pointer;
+      transition: opacity 0.2s, transform 0.15s, box-shadow 0.2s;
+      position: relative;
+      overflow: hidden;
+    }
+
+    button[type="submit"]:hover:not(:disabled) {
+      opacity: 0.92;
+      transform: translateY(-1px);
+      box-shadow: 0 8px 28px rgba(99,102,241,0.35);
+    }
+
+    button[type="submit"]:active:not(:disabled) {
+      transform: translateY(0);
+    }
+
+    button[type="submit"]:disabled { opacity: 0.6; cursor: not-allowed; }
+
+    .spinner {
+      display: none;
+      width: 20px;
+      height: 20px;
+      border: 2.5px solid rgba(255,255,255,0.3);
+      border-top-color: #fff;
+      border-radius: 50%;
+      animation: spin 0.6s linear infinite;
+      position: absolute;
+      left: 50%;
+      top: 50%;
+      transform: translate(-50%, -50%);
+    }
+
+    @keyframes spin { to { transform: translate(-50%, -50%) rotate(360deg); } }
+
+    button[type="submit"] .btn-text {
+      transition: opacity 0.15s;
+    }
+
+    button[type="submit"]:disabled .btn-text { opacity: 0; }
+    button[type="submit"]:disabled .spinner { display: block; }
+
+    .result {
+      margin-top: 1.5rem;
+      padding: 1rem 1.15rem;
+      border-radius: 14px;
+      background: rgba(34,197,94,0.07);
+      border: 1px solid rgba(34,197,94,0.2);
+      display: none;
+      animation: fadeUp 0.35s ease-out;
+    }
+
+    .result.show { display: flex; align-items: center; gap: 0.75rem; }
+
+    .result .url-text {
+      flex: 1;
+      min-width: 0;
+    }
+
+    .result .url-label {
+      font-size: 0.7rem;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: #22c55e;
+      font-weight: 600;
+      margin-bottom: 0.2rem;
+    }
+
+    .result a {
+      display: block;
+      color: #86efac;
+      font-weight: 500;
+      text-decoration: none;
+      font-size: 0.92rem;
+      word-break: break-all;
+      line-height: 1.4;
+    }
+
+    .result a:hover { text-decoration: underline; }
+
+    .copy-btn {
+      flex-shrink: 0;
+      width: 38px;
+      height: 38px;
+      border-radius: 10px;
+      border: 1px solid rgba(34,197,94,0.25);
+      background: rgba(34,197,94,0.1);
+      color: #22c55e;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: background 0.2s, border-color 0.2s;
+    }
+
+    .copy-btn:hover {
+      background: rgba(34,197,94,0.18);
+      border-color: rgba(34,197,94,0.4);
+    }
+
+    .copy-btn svg { width: 18px; height: 18px; }
+
+    .copy-btn.copied {
+      color: #22c55e;
+      border-color: #22c55e;
+    }
+
+    .error {
+      margin-top: 1.5rem;
+      padding: 0.9rem 1.15rem;
+      border-radius: 14px;
+      background: rgba(239,68,68,0.07);
+      border: 1px solid rgba(239,68,68,0.2);
+      color: #fca5a5;
+      font-size: 0.9rem;
+      display: none;
+      animation: fadeUp 0.35s ease-out;
+    }
+
+    .error.show { display: block; }
+
+    .footer {
+      margin-top: 2rem;
+      text-align: center;
+    }
+
+    .footer a {
+      color: #475569;
+      font-size: 0.78rem;
+      text-decoration: none;
+      transition: color 0.2s;
+    }
+
+    .footer a:hover { color: #64748b; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div class="logo">
+      <div class="logo-icon">S</div>
+      <h1>Shorty</h1>
+    </div>
+    <p class="sub">Paste a long URL and get a short, shareable link.</p>
+
+    <form id="shorten-form">
+      <div class="input-wrap">
+        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1"/></svg>
+        <input type="url" id="url-input" placeholder="https://example.com/very/long/url" required />
+      </div>
+      <button type="submit" id="submit-btn">
+        <span class="btn-text">Shorten</span>
+        <span class="spinner"></span>
+      </button>
+    </form>
+
+    <div class="result" id="result">
+      <div class="url-text">
+        <div class="url-label">Your short link</div>
+        <a href="#" id="result-link" target="_blank" rel="noopener"></a>
+      </div>
+      <button class="copy-btn" id="copy-btn" title="Copy to clipboard">
+        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>
+      </button>
+    </div>
+
+    <div class="error" id="error"></div>
+  </div>
+
+  <script>
+    const form = document.getElementById("shorten-form");
+    const input = document.getElementById("url-input");
+    const button = document.getElementById("submit-btn");
+    const result = document.getElementById("result");
+    const resultLink = document.getElementById("result-link");
+    const copyBtn = document.getElementById("copy-btn");
+    const errorBox = document.getElementById("error");
+
+    form.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      errorBox.classList.remove("show");
+      result.classList.remove("show");
+      button.disabled = true;
+
+      try {
+        const response = await fetch("/shorten", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ original_url: input.value.trim() }),
+        });
+
+        if (!response.ok) {
+          const data = await response.json().catch(() => ({}));
+          throw new Error(data.detail || "Something went wrong.");
+        }
+
+        const data = await response.json();
+        const shortUrl = window.location.origin + "/" + data.short_code;
+        resultLink.href = shortUrl;
+        resultLink.textContent = shortUrl;
+        result.classList.add("show");
+        input.value = "";
+      } catch (err) {
+        errorBox.textContent = err.message;
+        errorBox.classList.add("show");
+      } finally {
+        button.disabled = false;
+      }
+    });
+
+    copyBtn.addEventListener("click", async () => {
+      const url = resultLink.href;
+      if (!url) return;
+      try {
+        await navigator.clipboard.writeText(url);
+        copyBtn.classList.add("copied");
+        copyBtn.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>';
+        setTimeout(() => {
+          copyBtn.classList.remove("copied");
+          copyBtn.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>';
+        }, 2000);
+      } catch {}
+    });
+  </script>
+</body>
+</html>

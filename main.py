@@ -6,8 +6,12 @@ from fastapi import FastAPI, Depends
 # FastAPI = web framework for building APIs
 # Depends = FastAPI's way to inject dependencies (we'll use this for DB)
 
-from fastapi.responses import RedirectResponse
+from fastapi.responses import RedirectResponse, FileResponse
 # RedirectResponse = sends an HTTP redirect to the browser (301/302)
+# FileResponse = serves a static HTML file (our frontend)
+
+from fastapi.staticfiles import StaticFiles
+# StaticFiles = lets FastAPI serve CSS/JS/asset files from a folder
 
 from sqlalchemy import create_engine, Column, String, Integer
 # create_engine = connects to the database
@@ -36,6 +40,9 @@ import secrets
 
 app = FastAPI()
 # Create the FastAPI app object. This is what runs the web server.
+
+app.mount("/static", StaticFiles(directory="static"), name="static")
+# Serve static assets (CSS/JS/images) from the static/ folder at the /static URL path.
 
 # ============================================================================
 # DATABASE SETUP
@@ -186,11 +193,8 @@ def get_db():
 # When someone visits http://localhost:8000/, this function runs
 
 def read_root():
-    # The function name doesn't matter to FastAPI (just for readability)
-    
-    return {"message": "URL Shortener"}
-    # Return a Python dict. FastAPI automatically converts it to JSON.
-    # Client sees: {"message": "URL Shortener"}
+    # Serve the frontend HTML page at the root URL ("/")
+    return FileResponse("static/index.html")
 
 # ============================================================================
 # ROUTE 2: SHORTEN A URL
