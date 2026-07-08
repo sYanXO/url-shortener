@@ -25,6 +25,7 @@ from pydantic import BaseModel
 
 from fastapi import HTTPException
 # HTTPException = raise errors that FastAPI converts to HTTP responses (404, 500, etc)
+from sqlalchemy.exc import IntegrityError
 
 import secrets
 # secrets = cryptographically secure random number generator (better than random)
@@ -193,7 +194,7 @@ def shorten(request: URLRequest, db: Session = Depends(get_db)):
     #                                 passes it to this function
     #                                 After function ends, get_db() resumes and calls db.close()
     
-    short_code = secrets.token_urlsafe(6)
+    short_code = generate_short_code_with_retry(db,max_retries=5)
     # secrets.token_urlsafe(6) = generate a random 6-character string
     # Examples: "aB3xY2", "m9K2Lp", "x7QwRt"
     # token_urlsafe = URL-safe (no weird symbols that break URLs)
@@ -206,10 +207,10 @@ def shorten(request: URLRequest, db: Session = Depends(get_db)):
     # id will be auto-set by SQLAlchemy when we commit
     
     db.add(url_mapping)
-    # Tell the session "I want to add this object"
-    # This queues the insert, but doesn't write to disk yet (pending)
-    
     db.commit()
+    
+    
+    
     # Actually write the queued changes to the database
     # Now the row physically exists in shortener.db
     # If something fails here, the entire transaction is rolled back (nothing gets saved)
@@ -307,3 +308,14 @@ def redirect_url(short_code: str, db: Session = Depends(get_db)):
 #   sqlite> SELECT * FROM url_mappings;
 # 
 # Or use a GUI tool like DB Browser for SQLite
+
+def generate_short_code_with_retry(db:Session, max_retries:int=5):
+    for attempt in range(max_retries):
+        short_code = secrets.token_urlsafe(6)
+        try:
+            existing=db.query(URLMapping).filter(URLMapping.short_code==short_code).first()
+            if not existing:
+                return short_code
+        except IntegrityError:
+            db.rollback()
+    raise HTTPException(status_code=500, detail="Failed to generate unique short code")
