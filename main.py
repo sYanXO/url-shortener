@@ -119,12 +119,26 @@ Base.metadata.create_all(bind=engine)
 # ============================================================================
 # REQUEST DATA VALIDATION (Pydantic)
 # ============================================================================
-
+from urllib.parse import urlparse
+from pydantic import BaseModel, field_validator
+def is_valid_url(url:str)->bool:
+    try:
+        res = urlparse(url)
+        return all([res.scheme, res.netloc])
+    except:
+        return False
 class URLRequest(BaseModel):
     # When a client sends JSON to /shorten, Pydantic parses it into this class
     # This validates that the JSON has the right structure
     
     original_url: str
+
+    @field_validator('original_url')
+    @classmethod
+    def validate_url(cls,v):
+        if not is_valid_url(v):
+            raise ValueError('Invalid URL format')
+        return v
     # original_url = field name
     # str = must be a string
     # No default = it's REQUIRED (client must include it)
@@ -319,3 +333,4 @@ def generate_short_code_with_retry(db:Session, max_retries:int=5):
         except IntegrityError:
             db.rollback()
     raise HTTPException(status_code=500, detail="Failed to generate unique short code")
+
