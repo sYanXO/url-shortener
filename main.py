@@ -212,7 +212,8 @@ def read_root():
 # ============================================================================
 # ROUTE 2: SHORTEN A URL
 # ============================================================================
-
+from pybloom_live import BloomFilter
+bloom_filter = BloomFilter(capacity=1000000, error_rate=0.001)
 @app.post("/shorten")
 # @app.post() = FastAPI decorator that registers a POST endpoint at "/shorten"
 # Client sends JSON data in the body, not in the URL
@@ -241,24 +242,18 @@ def shorten(request: URLRequest, db: Session = Depends(get_db)):
     
     db.add(url_mapping)
     db.commit()
-    
-    
-    
-    # Actually write the queued changes to the database
-    # Now the row physically exists in shortener.db
-    # If something fails here, the entire transaction is rolled back (nothing gets saved)
+
     
     db.refresh(url_mapping)
     # Reload the object from the database
     # Why? The database might have modified it (e.g., auto-set the id)
     # Now url_mapping.id is populated (1, 2, 3, etc)
 
+    bloom_filter.add(short_code)  # Add to bloom filter
     logger.info(f"Created short code: {short_code}")
     
     return {"short_code": short_code}
-    # Return the short code to the client
-    # Client gets: {"short_code": "aB3xY2"}
-    # They can now use http://localhost:8000/aB3xY2 to access it
+ 
 
 # ============================================================================
 # ROUTE 3: REDIRECT TO ORIGINAL URL
@@ -274,20 +269,24 @@ def shorten(request: URLRequest, db: Session = Depends(get_db)):
 def redirect_url(short_code: str, db: Session = Depends(get_db)):
     logger.info(f"Redirecting short code: {short_code}")
     
-    # Check Redis first
+    # Check Bloom filter (O(1) negative lookup)
+    if short_code not in bloom_filter:
+        logger.warning(f"Bloom filter rejected: {short_code}")
+        raise HTTPException(status_code=404, detail="Short code not found")
+    
+    # Check Redis
     cached_url = redis_client.get(short_code)
     if cached_url:
         logger.info(f"Cache hit: {short_code}")
         return RedirectResponse(url=cached_url)
     
-    # Cache miss, query DB
+    # Query DB
     mapping = db.query(URLMapping).filter(URLMapping.short_code == short_code).first()
     
     if not mapping:
         logger.warning(f"Short code not found: {short_code}")
         raise HTTPException(status_code=404, detail="Short code not found")
     
-    # Store in Redis
     redis_client.set(short_code, mapping.original_url)
     logger.info(f"Cache miss, stored in Redis: {short_code}")
     
