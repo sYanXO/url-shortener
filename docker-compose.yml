@@ -11,3 +11,7 @@ services:
       - .:/app
     environment:
       - DATABASE_URL=sqlite:///./shortener.db
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"

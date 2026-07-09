@@ -42,6 +42,11 @@ from datetime import datetime
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+
+import redis
+
+redis_client = redis.Redis(host='redis', port=6379, decode_responses=True)
+
 # ============================================================================
 # INITIALIZE THE APP
 # ============================================================================
@@ -265,41 +270,28 @@ def shorten(request: URLRequest, db: Session = Depends(get_db)):
 # If client visits http://localhost:8000/aB3xY2, short_code="aB3xY2"
 # If client visits http://localhost:8000/xyz123, short_code="xyz123"
 
+@app.get("/{short_code}")
 def redirect_url(short_code: str, db: Session = Depends(get_db)):
-    # short_code: str = FastAPI extracts "aB3xY2" from the URL and passes it here
-    # db: Session = same dependency injection as before
-
     logger.info(f"Redirecting short code: {short_code}")
     
+    # Check Redis first
+    cached_url = redis_client.get(short_code)
+    if cached_url:
+        logger.info(f"Cache hit: {short_code}")
+        return RedirectResponse(url=cached_url)
+    
+    # Cache miss, query DB
     mapping = db.query(URLMapping).filter(URLMapping.short_code == short_code).first()
-    # db.query(URLMapping) = "I want to search the url_mappings table"
-    # .filter(URLMapping.short_code == short_code) = "where short_code matches what the user entered"
-    #                                                 (e.g., short_code == "aB3xY2")
-    # .first() = "give me the first result, or None if nothing matches"
-    # 
-    # In SQL terms, this is like:
-    #   SELECT * FROM url_mappings WHERE short_code = 'aB3xY2' LIMIT 1;
-    # 
-    # mapping = either a URLMapping object, or None
     
     if not mapping:
-        # If the short code doesn't exist in the database
+        logger.warning(f"Short code not found: {short_code}")
         raise HTTPException(status_code=404, detail="Short code not found")
-        # Send a 404 error to the client
-        # Response: {"detail": "Short code not found"}
-
-    logger.info(f"Redirecting {short_code} to {mapping.original_url}")
+    
+    # Store in Redis
+    redis_client.set(short_code, mapping.original_url)
+    logger.info(f"Cache miss, stored in Redis: {short_code}")
     
     return RedirectResponse(url=mapping.original_url)
-    # mapping.original_url = the long URL stored in the database
-    # RedirectResponse = send an HTTP redirect (301 or 302)
-    # Browser automatically follows the redirect
-    # 
-    # Example:
-    #   Client visits http://localhost:8000/aB3xY2
-    #   Server responds with a redirect to https://google.com
-    #   Browser follows the redirect and shows google.com
-    #   User sees https://google.com in the address bar
 
 # ============================================================================
 # HOW TO RUN THIS
