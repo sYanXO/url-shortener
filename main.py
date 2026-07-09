@@ -1,6 +1,7 @@
 # ============================================================================
 # IMPORTS - bringing in libraries we need
 # ============================================================================
+import os
 
 from fastapi import FastAPI, Depends
 # FastAPI = web framework for building APIs
@@ -47,98 +48,62 @@ import redis
 
 redis_client = redis.Redis(host='redis', port=6379, decode_responses=True)
 
-# ============================================================================
-# INITIALIZE THE APP
-# ============================================================================
 
+from celery import Celery
+
+celery_app = Celery('url_shortener', broker='redis://redis:6379/0')
+
+@celery_app.task
+def log_click(short_code: str):
+    logger.info(f"Click logged for: {short_code}")
+
+celery_app.conf.update(
+    broker_url='redis://redis:6379/0',
+    result_backend='redis://redis:6379/0'
+)
 app = FastAPI()
-# Create the FastAPI app object. This is what runs the web server.
+if os.path.exists("static"):
+    app.mount("/static", StaticFiles(directory="static"), name="static")
 
-app.mount("/static", StaticFiles(directory="static"), name="static")
-# Serve static assets (CSS/JS/images) from the static/ folder at the /static URL path.
 
-# ============================================================================
-# DATABASE SETUP
-# ============================================================================
+
+
+
+
+
+
 
 DATABASE_URL = "sqlite:///./shortener.db"
-# SQLite connection string
-# "sqlite:///" = use SQLite
-# "./shortener.db" = create/use a file called shortener.db in current directory
-# This is a local file database, not a remote server (good for learning)
+
 
 engine = create_engine(DATABASE_URL, connect_args={"check_same_thread": False})
-# create_engine = opens/creates the database connection
-# connect_args={"check_same_thread": False} = SQLite normally complains if you use it
-#   from different threads (for safety). We're telling it "don't worry, FastAPI handles this"
-#   This is safe to use for learning/small projects.
+
 
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
-# sessionmaker = a FACTORY that creates new database sessions
-# autocommit=False = don't auto-save changes. We have to explicitly call db.commit()
-# autoflush=False = don't auto-flush pending changes. We control when to flush
-# bind=engine = use the engine we just created to make sessions
-# 
-# Think of it like: SessionLocal() returns a new "session" object each time you call it
+
 
 Base = declarative_base()
-# declarative_base = creates a base class for all our table definitions
-# When we define URLMapping(Base), SQLAlchemy knows it's a table definition
-# This is the ORM (Object-Relational Mapping) magic
 
-# ============================================================================
-# DATABASE TABLE DEFINITION (as a Python class)
-# ============================================================================
 
 class URLMapping(Base):
-    # Inherit from Base so SQLAlchemy knows this is a table definition
+    
     
     __tablename__ = "url_mappings"
-    # The actual table name in the database
-    # SQLAlchemy will create a table called "url_mappings" in shortener.db
-    
-    # Each of the following are COLUMNS in the url_mappings table:
+
     
     id = Column(Integer, primary_key=True, index=True)
-    # id = column name
-    # Integer = data type (whole numbers)
-    # primary_key=True = this is the main unique identifier for each row
-    # index=True = SQLAlchemy auto-increments this (1, 2, 3, ...)
-    #             also makes searches by id faster
+    
     
     short_code = Column(String, unique=True, index=True)
-    # short_code = column name (stores the shortened code like "aB3xY2")
-    # String = text data
-    # unique=True = no two rows can have the same short_code
-    #              (prevents duplicate shortened URLs)
-    # index=True = makes searches by short_code faster
+   
     
     original_url = Column(String)
-    # original_url = column name (stores the long URL)
-    # String = text data
-    # (no unique or index needed - multiple URLs might exist, lookups aren't as frequent)
-
-# ============================================================================
-# CREATE THE TABLE IN THE DATABASE (if it doesn't exist)
-# ============================================================================
+ 
 
 Base.metadata.create_all(bind=engine)
-# This runs ONCE when the app starts
-# Looks at all classes that inherit from Base (just URLMapping so far)
-# Creates the actual SQL table in shortener.db if it doesn't exist
-# 
-# Behind the scenes, this essentially runs:
-#   CREATE TABLE url_mappings (
-#       id INTEGER PRIMARY KEY,
-#       short_code TEXT UNIQUE,
-#       original_url TEXT
-#   );
-# 
-# If the table already exists, this does nothing (safe to run multiple times)
 
-# ============================================================================
-# REQUEST DATA VALIDATION (Pydantic)
-# ============================================================================
+
+
 from urllib.parse import urlparse
 from pydantic import BaseModel, field_validator
 def is_valid_url(url:str)->bool:
@@ -148,8 +113,7 @@ def is_valid_url(url:str)->bool:
     except:
         return False
 class URLRequest(BaseModel):
-    # When a client sends JSON to /shorten, Pydantic parses it into this class
-    # This validates that the JSON has the right structure
+    
     
     original_url: str
 
@@ -159,30 +123,14 @@ class URLRequest(BaseModel):
         if not is_valid_url(v):
             raise ValueError('Invalid URL format')
         return v
-    # original_url = field name
-    # str = must be a string
-    # No default = it's REQUIRED (client must include it)
-    #
-    # Valid JSON:
-    #   {"original_url": "https://google.com"}
-    # 
-    # Invalid JSON (FastAPI rejects these):
-    #   {}                                     (missing field)
-    #   {"original_url": 123}                  (not a string)
-    #   {"original_url": "url", "extra": "x"}  (extra fields are ignored but ok)
+    
 
-# ============================================================================
-# DEPENDENCY INJECTION HELPER
-# ============================================================================
 
 def get_db():
-    # This function is called by FastAPI automatically (via Depends)
-    # It creates and manages a database session for each request
+    
     
     db = SessionLocal()
-    # Create a new session
-    # SessionLocal() returns a Session object that can query/add/delete/etc
-    # Each request gets its own session (no cross-request contamination)
+    
     
     try:
         # "Try to do the following, and if something goes wrong..."
@@ -190,17 +138,9 @@ def get_db():
         # yield = pause here and let the route function use this 'db'
         # When the route function finishes, come back here and continue
     finally:
-        # "...no matter what, run this code"
-        # This runs AFTER the route function finishes
-        # (Even if the route raised an error, finally runs)
+        
         db.close()
-        # Close the database connection and clean up
-        # This is important! Don't leave connections open.
-
-# ============================================================================
-# ROUTE 1: HOME PAGE
-# ============================================================================
-
+        
 @app.get("/")
 # @app.get() = FastAPI decorator that registers a GET endpoint at "/"
 # When someone visits http://localhost:8000/, this function runs
@@ -255,21 +195,13 @@ def shorten(request: URLRequest, db: Session = Depends(get_db)):
     return {"short_code": short_code}
  
 
-# ============================================================================
-# ROUTE 3: REDIRECT TO ORIGINAL URL
-# ============================================================================
 
-@app.get("/{short_code}")
-# @app.get("/{short_code}") = GET endpoint with a path parameter
-# The {} means it's a variable
-# If client visits http://localhost:8000/aB3xY2, short_code="aB3xY2"
-# If client visits http://localhost:8000/xyz123, short_code="xyz123"
 
 @app.get("/{short_code}")
 def redirect_url(short_code: str, db: Session = Depends(get_db)):
     logger.info(f"Redirecting short code: {short_code}")
     
-    # Check Bloom filter (O(1) negative lookup)
+    # Check Bloom filter
     if short_code not in bloom_filter:
         logger.warning(f"Bloom filter rejected: {short_code}")
         raise HTTPException(status_code=404, detail="Short code not found")
@@ -278,6 +210,7 @@ def redirect_url(short_code: str, db: Session = Depends(get_db)):
     cached_url = redis_client.get(short_code)
     if cached_url:
         logger.info(f"Cache hit: {short_code}")
+        log_click.delay(short_code)  # Queue async
         return RedirectResponse(url=cached_url)
     
     # Query DB
@@ -287,11 +220,12 @@ def redirect_url(short_code: str, db: Session = Depends(get_db)):
         logger.warning(f"Short code not found: {short_code}")
         raise HTTPException(status_code=404, detail="Short code not found")
     
+    # Store in Redis
     redis_client.set(short_code, mapping.original_url)
     logger.info(f"Cache miss, stored in Redis: {short_code}")
     
+    log_click.delay(short_code)  # Queue async
     return RedirectResponse(url=mapping.original_url)
-
 # ============================================================================
 # HOW TO RUN THIS
 # ============================================================================
