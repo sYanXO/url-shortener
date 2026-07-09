@@ -34,6 +34,14 @@ from sqlalchemy.exc import IntegrityError
 import secrets
 # secrets = cryptographically secure random number generator (better than random)
 
+
+import logging
+import json
+from datetime import datetime
+
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
 # ============================================================================
 # INITIALIZE THE APP
 # ============================================================================
@@ -211,6 +219,8 @@ def shorten(request: URLRequest, db: Session = Depends(get_db)):
     # db: Session = Depends(get_db) = FastAPI calls get_db(), which yields a session,
     #                                 passes it to this function
     #                                 After function ends, get_db() resumes and calls db.close()
+
+    logger.info(f"Shortening URL: {request.original_url}")
     
     short_code = generate_short_code_with_retry(db,max_retries=5)
     # secrets.token_urlsafe(6) = generate a random 6-character string
@@ -237,6 +247,8 @@ def shorten(request: URLRequest, db: Session = Depends(get_db)):
     # Reload the object from the database
     # Why? The database might have modified it (e.g., auto-set the id)
     # Now url_mapping.id is populated (1, 2, 3, etc)
+
+    logger.info(f"Created short code: {short_code}")
     
     return {"short_code": short_code}
     # Return the short code to the client
@@ -256,6 +268,8 @@ def shorten(request: URLRequest, db: Session = Depends(get_db)):
 def redirect_url(short_code: str, db: Session = Depends(get_db)):
     # short_code: str = FastAPI extracts "aB3xY2" from the URL and passes it here
     # db: Session = same dependency injection as before
+
+    logger.info(f"Redirecting short code: {short_code}")
     
     mapping = db.query(URLMapping).filter(URLMapping.short_code == short_code).first()
     # db.query(URLMapping) = "I want to search the url_mappings table"
@@ -273,6 +287,8 @@ def redirect_url(short_code: str, db: Session = Depends(get_db)):
         raise HTTPException(status_code=404, detail="Short code not found")
         # Send a 404 error to the client
         # Response: {"detail": "Short code not found"}
+
+    logger.info(f"Redirecting {short_code} to {mapping.original_url}")
     
     return RedirectResponse(url=mapping.original_url)
     # mapping.original_url = the long URL stored in the database
