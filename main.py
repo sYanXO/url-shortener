@@ -186,6 +186,10 @@ class URLRequest(BaseModel):
 def read_root():
     return FileResponse("static/index.html")
 
+@app.get("/dashboard")
+def read_dashboard():
+    return FileResponse("static/dashboard.html")
+
 
 # ============================================================================
 # ROUTES — CORE
