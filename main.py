@@ -8,7 +8,7 @@ from datetime import datetime, date, timedelta
 from urllib.parse import urlparse
 from collections import defaultdict
 
-from fastapi import FastAPI, Depends, BackgroundTasks, HTTPException
+from fastapi import FastAPI, Depends, BackgroundTasks, HTTPException, Request
 from fastapi.responses import RedirectResponse, FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from sqlalchemy import create_engine, Column, String, Integer, DateTime, ForeignKey, func
@@ -17,6 +17,9 @@ from sqlalchemy.orm import sessionmaker, Session, relationship
 from sqlalchemy.exc import IntegrityError
 from pydantic import BaseModel, field_validator
 from pybloom_live import BloomFilter
+from slowapi import Limiter, _rate_limit_exceeded_handler
+from slowapi.util import get_remote_address
+from slowapi.errors import RateLimitExceeded
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -30,10 +33,19 @@ if DATABASE_URL.startswith("postgres://"):
     DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql://", 1)
 
 connect_args = {}
+engine_args = {}
 if DATABASE_URL.startswith("sqlite"):
     connect_args = {"check_same_thread": False}
+else:
+    # PostgreSQL specific engine args for Neon / persistent pool health
+    engine_args = {
+        "pool_pre_ping": True,
+        "pool_recycle": 300,
+        "pool_size": 10,
+        "max_overflow": 20,
+    }
 
-engine = create_engine(DATABASE_URL, connect_args=connect_args)
+engine = create_engine(DATABASE_URL, connect_args=connect_args, **engine_args)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
 
@@ -91,11 +103,38 @@ _safe_migrate()
 # ============================================================================
 # APP SETUP
 # ============================================================================
-# In-memory cache for redirects
-memory_cache = {}
+# In-memory cache for redirects (LRU to prevent unbounded memory growth)
+from cachetools import LRUCache
+memory_cache = LRUCache(maxsize=10000)
 bloom_filter = BloomFilter(capacity=1000000, error_rate=0.001)
 
+limiter = Limiter(key_func=get_remote_address)
 app = FastAPI()
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+
+# GZip Compression
+from fastapi.middleware.gzip import GZipMiddleware
+app.add_middleware(GZipMiddleware, minimum_size=1000)
+
+# Security Headers
+@app.middleware("http")
+async def add_security_headers(request: Request, call_next):
+    response = await call_next(request)
+    response.headers["X-Frame-Options"] = "DENY"
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    response.headers["X-XSS-Protection"] = "1; mode=block"
+    response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+    response.headers["Content-Security-Policy"] = (
+        "default-src 'self'; "
+        "script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; "
+        "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; "
+        "font-src 'self' https://fonts.gstatic.com; "
+        "img-src 'self' data: https://api.qrserver.com; "
+        "connect-src 'self';"
+    )
+    return response
+
 if os.path.exists("static"):
     app.mount("/static", StaticFiles(directory="static"), name="static")
 
@@ -131,7 +170,7 @@ def get_db():
 def is_valid_url(url: str) -> bool:
     try:
         res = urlparse(url)
-        return all([res.scheme, res.netloc])
+        return res.scheme in ("http", "https") and bool(res.netloc)
     except Exception:
         return False
 
@@ -174,6 +213,8 @@ class URLRequest(BaseModel):
     @field_validator("original_url")
     @classmethod
     def validate_url(cls, v):
+        if len(v) > 2048:
+            raise ValueError("URL exceeds maximum length of 2048 characters")
         if not is_valid_url(v):
             raise ValueError("Invalid URL format")
         return v
@@ -195,13 +236,14 @@ def read_dashboard():
 # ROUTES — CORE
 # ============================================================================
 @app.post("/shorten")
-def shorten(request: URLRequest, db: Session = Depends(get_db)):
-    logger.info(f"Shortening URL: {request.original_url}")
+@limiter.limit("10/minute")
+def shorten(request: Request, payload: URLRequest, db: Session = Depends(get_db)):
+    logger.info(f"Shortening URL: {payload.original_url}")
     short_code = generate_short_code_with_retry(db)
 
     url_mapping = URLMapping(
         short_code=short_code,
-        original_url=request.original_url,
+        original_url=payload.original_url,
         created_at=datetime.utcnow(),
         click_count=0,
     )
@@ -210,18 +252,28 @@ def shorten(request: URLRequest, db: Session = Depends(get_db)):
     db.refresh(url_mapping)
 
     bloom_filter.add(short_code)
-    memory_cache[short_code] = request.original_url
+    memory_cache[short_code] = payload.original_url
     logger.info(f"Created short code: {short_code}")
 
     return {"short_code": short_code}
 
 
+_stats_cache = {"data": None, "timestamp": 0}
+
 @app.get("/api/stats")
 def get_stats(db: Session = Depends(get_db)):
-    """Return aggregate stats: total links, total clicks."""
+    """Return aggregate stats: total links, total clicks (cached for 10s)."""
+    import time
+    now = time.time()
+    if _stats_cache["data"] is not None and now - _stats_cache["timestamp"] < 10:
+        return _stats_cache["data"]
+
     total_links = db.query(func.count(URLMapping.id)).scalar() or 0
     total_clicks = db.query(func.sum(URLMapping.click_count)).scalar() or 0
-    return {"total_links": total_links, "total_clicks": total_clicks}
+
+    _stats_cache["data"] = {"total_links": total_links, "total_clicks": total_clicks}
+    _stats_cache["timestamp"] = now
+    return _stats_cache["data"]
 
 
 @app.get("/api/links")

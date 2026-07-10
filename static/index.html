@@ -4,6 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Shorty — URL Shortener</title>
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23f5f5f5' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M10 13a5 5 0 007.54.54l3-3a5 5 0 00-7.07-7.07l-1.72 1.71'/%3E%3Cpath d='M14 11a5 5 0 00-7.54-.54l-3 3a5 5 0 007.07 7.07l1.71-1.71'/%3E%3C/svg%3E" />
   <meta name="description" content="A fast, minimal URL shortener with real-time analytics." />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
@@ -43,6 +44,7 @@
       min-height: 100vh;
       -webkit-font-smoothing: antialiased;
       position: relative;
+      padding: 40px 20px;
     }
 
     /* =============================================
@@ -138,7 +140,7 @@
 
     #url-input {
       width: 100%;
-      padding: 12px 14px 12px 42px;
+      padding: 12px 64px 12px 42px;
       background: var(--surface-2);
       border: 1px solid var(--border-2);
       border-radius: var(--radius);
@@ -154,6 +156,27 @@
     #url-input:focus {
       border-color: rgba(255,255,255,0.25);
       box-shadow: 0 0 0 3px rgba(255,255,255,0.04);
+    }
+
+    #paste-btn {
+      position: absolute;
+      right: 12px;
+      top: 50%;
+      transform: translateY(-50%);
+      background: var(--surface);
+      border: 1px solid var(--border-2);
+      color: var(--text-2);
+      font-size: 11px;
+      font-weight: 600;
+      padding: 4px 8px;
+      border-radius: 6px;
+      cursor: pointer;
+      display: none;
+      transition: color var(--transition), border-color var(--transition);
+    }
+    #paste-btn:hover {
+      color: var(--text-1);
+      border-color: rgba(255,255,255,0.25);
     }
 
     #shorten-btn {
@@ -246,7 +269,7 @@
       border: none;
       color: var(--text-3);
       cursor: pointer;
-      padding: 4px;
+      padding: 6px;
       border-radius: 4px;
       display: flex;
       align-items: center;
@@ -256,12 +279,111 @@
     .copy-btn:hover { color: var(--text-1); background: var(--surface-2); }
     .copy-btn svg { width: 14px; height: 14px; }
 
+    .copy-btn.active {
+      color: var(--text-1);
+      background: var(--surface-2);
+    }
+
     .error-box {
       background: rgba(255,68,68,0.1);
       border: 1px solid rgba(255,68,68,0.2);
       color: var(--danger);
       padding: 12px 16px;
       font-size: 13px;
+    }
+
+    /* =============================================
+       QR CODE CONTAINER
+    ============================================= */
+    .qr-container {
+      display: none;
+      margin-top: 12px;
+      text-align: center;
+      background: #ffffff;
+      padding: 12px;
+      border-radius: 8px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+      animation: fadeIn 0.25s ease;
+    }
+    .qr-container.show { display: block; }
+    .qr-img {
+      display: inline-block;
+      width: 130px;
+      height: 130px;
+    }
+
+    /* =============================================
+       HISTORY CONTAINER
+    ============================================= */
+    .history-box {
+      margin-top: 24px;
+      border-top: 1px solid var(--border);
+      padding-top: 24px;
+      display: none;
+    }
+    .history-box.show { display: block; }
+    .history-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 12px;
+    }
+    .history-title {
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--text-3);
+      font-weight: 600;
+    }
+    .history-clear {
+      background: transparent;
+      border: none;
+      color: var(--text-3);
+      font-size: 11px;
+      cursor: pointer;
+      transition: color var(--transition);
+    }
+    .history-clear:hover { color: var(--danger); }
+
+    .history-list {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    .history-item {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 10px 12px;
+      background: var(--surface-2);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      gap: 12px;
+      transition: border-color var(--transition);
+    }
+    .history-item:hover { border-color: var(--border-2); }
+    .history-info {
+      overflow: hidden;
+      flex: 1;
+    }
+    .history-short {
+      color: var(--text-1);
+      font-weight: 500;
+      text-decoration: none;
+      font-size: 13px;
+      display: block;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .history-short:hover { text-decoration: underline; }
+    .history-original {
+      color: var(--text-3);
+      font-size: 11px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      margin-top: 2px;
     }
   </style>
 </head>
@@ -290,6 +412,7 @@
           <circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/>
         </svg>
         <input type="url" id="url-input" placeholder="https://example.com/..." autocomplete="off" />
+        <button id="paste-btn" type="button" title="Paste from clipboard">Paste</button>
       </div>
       <button id="shorten-btn">
         <span class="btn-text">Create Short Link</span>
@@ -300,25 +423,65 @@
     <div class="result-box" id="result-box">
       <div class="result-label">Link created</div>
       <div class="result-row">
-        <a href="#" id="result-link" target="_blank" rel="noopener" class="result-link"></a>
-        <button class="copy-btn" id="copy-btn" title="Copy to clipboard">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/>
-          </svg>
-        </button>
+        <a href="#" id="result-link" target="_blank" rel="noopener noreferrer" class="result-link"></a>
+        <div style="display: flex; gap: 6px;">
+          <button class="copy-btn" id="qr-btn" title="Show QR Code">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/>
+              <rect x="14" y="14" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/>
+            </svg>
+          </button>
+          <button class="copy-btn" id="copy-btn" title="Copy to clipboard">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/>
+            </svg>
+          </button>
+        </div>
+      </div>
+      <div class="qr-container" id="qr-container">
+        <img class="qr-img" id="qr-img" src="" alt="QR Code" />
       </div>
     </div>
 
     <div class="error-box" id="error-box"></div>
+
+    <div class="history-box" id="history-box">
+      <div class="history-header">
+        <span class="history-title">Recent Creations</span>
+        <button class="history-clear" id="history-clear-btn">Clear</button>
+      </div>
+      <div class="history-list" id="history-list"></div>
+    </div>
   </div>
 
   <script>
     const urlInput = document.getElementById('url-input');
     const shortenBtn = document.getElementById('shorten-btn');
+    const pasteBtn = document.getElementById('paste-btn');
     const resultBox = document.getElementById('result-box');
     const resultLink = document.getElementById('result-link');
     const copyBtn = document.getElementById('copy-btn');
+    const qrBtn = document.getElementById('qr-btn');
+    const qrContainer = document.getElementById('qr-container');
+    const qrImg = document.getElementById('qr-img');
     const errorBox = document.getElementById('error-box');
+    const historyBox = document.getElementById('history-box');
+    const historyList = document.getElementById('history-list');
+    const historyClearBtn = document.getElementById('history-clear-btn');
+
+    // Clipboard Paste Integration
+    if (navigator.clipboard && navigator.clipboard.readText) {
+      pasteBtn.style.display = 'block';
+      pasteBtn.addEventListener('click', async () => {
+        try {
+          const text = await navigator.clipboard.readText();
+          urlInput.value = text;
+          urlInput.focus();
+        } catch (err) {
+          console.warn('Clipboard read denied', err);
+        }
+      });
+    }
 
     function copyToClipboard(text, btn) {
       navigator.clipboard.writeText(text).then(() => {
@@ -328,12 +491,59 @@
       }).catch(() => {});
     }
 
+    // Local History Management
+    function getHistory() {
+      return JSON.parse(localStorage.getItem('shorty_history') || '[]');
+    }
+
+    function addHistoryItem(code, originalUrl) {
+      let history = getHistory();
+      // Remove duplicate if exists
+      history = history.filter(item => item.code !== code);
+      history.unshift({ code, url: originalUrl });
+      // Keep max 5
+      if (history.length > 5) history.pop();
+      localStorage.setItem('shorty_history', JSON.stringify(history));
+      renderHistory();
+    }
+
+    function renderHistory() {
+      const history = getHistory();
+      if (!history.length) {
+        historyBox.classList.remove('show');
+        return;
+      }
+      historyBox.classList.add('show');
+      historyList.innerHTML = history.map(item => {
+        const shortUrl = location.origin + '/' + item.code;
+        return `
+          <div class="history-item">
+            <div class="history-info">
+              <a href="${shortUrl}" target="_blank" rel="noopener noreferrer" class="history-short">${shortUrl}</a>
+              <div class="history-original" title="${item.url}">${item.url}</div>
+            </div>
+            <button class="copy-btn" onclick="copyToClipboard('${shortUrl}', this)" title="Copy short link">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/>
+              </svg>
+            </button>
+          </div>`;
+      }).join('');
+    }
+
+    historyClearBtn.addEventListener('click', () => {
+      localStorage.removeItem('shorty_history');
+      renderHistory();
+    });
+
     shortenBtn.addEventListener('click', async () => {
       const url = urlInput.value.trim();
       if (!url) return;
 
       errorBox.classList.remove('show');
       resultBox.classList.remove('show');
+      qrContainer.classList.remove('show');
+      qrBtn.classList.remove('active');
       shortenBtn.classList.add('loading');
       shortenBtn.disabled = true;
 
@@ -350,8 +560,15 @@
         const shortUrl = location.origin + '/' + data.short_code;
         resultLink.href = shortUrl;
         resultLink.textContent = shortUrl;
+        
+        // Generate QR code URL
+        qrImg.src = `https://api.qrserver.com/v1/create-qr-code/?size=200x200&color=0-0-0&bgcolor=ffffff&data=${encodeURIComponent(shortUrl)}`;
+        
         resultBox.classList.add('show');
         urlInput.value = '';
+
+        // Add to local history
+        addHistoryItem(data.short_code, url);
       } catch (err) {
         errorBox.textContent = err.message;
         errorBox.classList.add('show');
@@ -368,6 +585,14 @@
     copyBtn.addEventListener('click', () => {
       copyToClipboard(resultLink.href, copyBtn);
     });
+
+    qrBtn.addEventListener('click', () => {
+      qrContainer.classList.toggle('show');
+      qrBtn.classList.toggle('active');
+    });
+
+    // Render history on page load
+    renderHistory();
   </script>
 </body>
 </html>
