@@ -153,10 +153,7 @@ if os.path.exists("static"):
 def startup():
     db = SessionLocal()
     try:
-        mappings = db.query(URLMapping.short_code).all()
-        for m in mappings:
-            bloom_filter.add(m.short_code)
-        logger.info(f"Loaded {len(mappings)} short codes into Bloom Filter.")
+        ShortURLStore.populate_filter(db)
     except Exception as e:
         logger.error(f"Failed to populate Bloom filter on startup: {e}")
     finally:
@@ -197,23 +194,6 @@ def generate_short_code_with_retry(db: Session, max_retries: int = 5) -> str:
     raise HTTPException(status_code=500, detail="Failed to generate unique short code")
 
 
-def record_click(short_code: str):
-    """Increment click counter and record a click event in the DB."""
-    db = SessionLocal()
-    try:
-        db.query(URLMapping).filter(URLMapping.short_code == short_code).update(
-            {URLMapping.click_count: URLMapping.click_count + 1}
-        )
-        click = Click(short_code=short_code, clicked_at=datetime.utcnow())
-        db.add(click)
-        db.commit()
-    except Exception as e:
-        logger.error(f"Failed to record click for {short_code}: {e}")
-        db.rollback()
-    finally:
-        db.close()
-
-
 # ============================================================================
 # PYDANTIC SCHEMAS
 # ============================================================================
@@ -231,8 +211,178 @@ class URLRequest(BaseModel):
         return v
 
 
+class NicknameUpdateRequest(BaseModel):
+    nickname: str | None = None
+
+
 # ============================================================================
-# ROUTES — FRONTEND
+# DEEP MODULES
+# ============================================================================
+class ShortURLStore:
+    @staticmethod
+    def populate_filter(db: Session):
+        mappings = db.query(URLMapping.short_code).all()
+        for m in mappings:
+            bloom_filter.add(m.short_code)
+        logger.info(f"Loaded {len(mappings)} short codes into Bloom Filter.")
+
+    @staticmethod
+    def resolve(short_code: str, db: Session) -> str:
+        if short_code not in bloom_filter:
+            logger.warning(f"Bloom filter rejected: {short_code}")
+            raise HTTPException(status_code=404, detail="Short code not found")
+
+        cached_url = memory_cache.get(short_code)
+        if cached_url:
+            logger.info(f"Cache hit: {short_code}")
+            return cached_url
+
+        mapping = db.query(URLMapping).filter(URLMapping.short_code == short_code).first()
+        if not mapping:
+            logger.warning(f"Short code not found: {short_code}")
+            raise HTTPException(status_code=404, detail="Short code not found")
+
+        memory_cache[short_code] = mapping.original_url
+        logger.info(f"Cache miss, stored in memory cache: {short_code}")
+        return mapping.original_url
+
+    @staticmethod
+    def create(original_url: str, nickname: str | None, db: Session) -> dict:
+        # Check if original URL already exists
+        existing = db.query(URLMapping).filter(URLMapping.original_url == original_url).first()
+        if existing:
+            if nickname:
+                existing.nickname = nickname
+                db.commit()
+            logger.info(f"URL already exists, returning existing short code: {existing.short_code}")
+            return {"short_code": existing.short_code, "already_exists": True}
+
+        short_code = generate_short_code_with_retry(db)
+
+        url_mapping = URLMapping(
+            short_code=short_code,
+            original_url=original_url,
+            nickname=nickname,
+            created_at=datetime.utcnow(),
+            click_count=0,
+        )
+        db.add(url_mapping)
+        db.commit()
+        db.refresh(url_mapping)
+
+        bloom_filter.add(short_code)
+        memory_cache[short_code] = original_url
+        logger.info(f"Created short code: {short_code}")
+
+        return {"short_code": short_code, "already_exists": False}
+
+    @staticmethod
+    def update_nickname(short_code: str, nickname: str | None, db: Session) -> str | None:
+        mapping = db.query(URLMapping).filter(URLMapping.short_code == short_code).first()
+        if not mapping:
+            raise HTTPException(status_code=404, detail="Link not found")
+
+        if mapping.nickname == nickname:
+            return mapping.nickname
+
+        if mapping.last_nickname_updated_at:
+            delta = datetime.utcnow() - mapping.last_nickname_updated_at
+            if delta < timedelta(days=7):
+                days_left = 7 - delta.days
+                hours_left = 24 - int(delta.seconds / 3600) % 24
+                if days_left > 0:
+                    time_str = f"{days_left} day{'s' if days_left != 1 else ''}"
+                else:
+                    time_str = f"{hours_left} hour{'s' if hours_left != 1 else ''}"
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Nickname can only be updated once every 7 days. Try again in {time_str}."
+                )
+
+        mapping.nickname = nickname
+        mapping.last_nickname_updated_at = datetime.utcnow()
+        db.commit()
+        return mapping.nickname
+
+    @staticmethod
+    def delete(short_code: str, db: Session):
+        mapping = db.query(URLMapping).filter(URLMapping.short_code == short_code).first()
+        if not mapping:
+            raise HTTPException(status_code=404, detail="Link not found")
+        db.delete(mapping)
+        db.commit()
+        if short_code in memory_cache:
+            del memory_cache[short_code]
+
+    @staticmethod
+    def get_links(limit: int, db: Session) -> list:
+        mappings = (
+            db.query(URLMapping)
+            .order_by(URLMapping.click_count.desc())
+            .limit(limit)
+            .all()
+        )
+        return [
+            {
+                "short_code": m.short_code,
+                "original_url": m.original_url,
+                "click_count": m.click_count,
+                "created_at": m.created_at.isoformat() if m.created_at else None,
+                "nickname": m.nickname,
+            }
+            for m in mappings
+        ]
+
+
+class ClickTracker:
+    @staticmethod
+    def record(short_code: str):
+        db = SessionLocal()
+        try:
+            db.query(URLMapping).filter(URLMapping.short_code == short_code).update(
+                {URLMapping.click_count: URLMapping.click_count + 1}
+            )
+            click = Click(short_code=short_code, clicked_at=datetime.utcnow())
+            db.add(click)
+            db.commit()
+        except Exception as e:
+            logger.error(f"Failed to record click for {short_code}: {e}")
+            db.rollback()
+        finally:
+            db.close()
+
+    @staticmethod
+    def get_clicks_over_time(days: int, db: Session) -> list:
+        since = datetime.utcnow() - timedelta(days=days)
+        rows = (
+            db.query(
+                func.date(Click.clicked_at).label("day"),
+                func.count(Click.id).label("count"),
+            )
+            .filter(Click.clicked_at >= since)
+            .group_by(func.date(Click.clicked_at))
+            .order_by(func.date(Click.clicked_at))
+            .all()
+        )
+
+        result = {}
+        for i in range(days):
+            d = (datetime.utcnow() - timedelta(days=days - 1 - i)).strftime("%Y-%m-%d")
+            result[d] = 0
+        for row in rows:
+            result[str(row.day)] = row.count
+
+        return [{"date": k, "count": v} for k, v in sorted(result.items())]
+
+    @staticmethod
+    def get_stats(db: Session) -> dict:
+        total_links = db.query(func.count(URLMapping.id)).scalar() or 0
+        total_clicks = db.query(func.sum(URLMapping.click_count)).scalar() or 0
+        return {"total_links": total_links, "total_clicks": total_clicks}
+
+
+# ============================================================================
+# ROUTES
 # ============================================================================
 @app.get("/")
 def read_root():
@@ -242,167 +392,51 @@ def read_root():
 def read_dashboard():
     return FileResponse("static/dashboard.html")
 
-
-# ============================================================================
-# ROUTES — CORE
-# ============================================================================
 @app.post("/shorten")
 @limiter.limit("10/minute")
 def shorten(request: Request, payload: URLRequest, db: Session = Depends(get_db)):
-    logger.info(f"Shortening URL: {payload.original_url}")
-    short_code = generate_short_code_with_retry(db)
-
-    url_mapping = URLMapping(
-        short_code=short_code,
-        original_url=payload.original_url,
-        nickname=payload.nickname,
-        created_at=datetime.utcnow(),
-        click_count=0,
-    )
-    db.add(url_mapping)
-    db.commit()
-    db.refresh(url_mapping)
-
-    bloom_filter.add(short_code)
-    memory_cache[short_code] = payload.original_url
-    logger.info(f"Created short code: {short_code}")
-
-    return {"short_code": short_code}
+    return ShortURLStore.create(payload.original_url, payload.nickname, db)
 
 
 _stats_cache = {"data": None, "timestamp": 0}
 
 @app.get("/api/stats")
 def get_stats(db: Session = Depends(get_db)):
-    """Return aggregate stats: total links, total clicks (cached for 10s)."""
     import time
     now = time.time()
     if _stats_cache["data"] is not None and now - _stats_cache["timestamp"] < 10:
         return _stats_cache["data"]
 
-    total_links = db.query(func.count(URLMapping.id)).scalar() or 0
-    total_clicks = db.query(func.sum(URLMapping.click_count)).scalar() or 0
-
-    _stats_cache["data"] = {"total_links": total_links, "total_clicks": total_clicks}
+    stats = ClickTracker.get_stats(db)
+    _stats_cache["data"] = stats
     _stats_cache["timestamp"] = now
-    return _stats_cache["data"]
+    return stats
 
 
 @app.get("/api/links")
 def get_links(limit: int = 50, db: Session = Depends(get_db)):
-    """Return all links ordered by click count descending."""
-    mappings = (
-        db.query(URLMapping)
-        .order_by(URLMapping.click_count.desc())
-        .limit(limit)
-        .all()
-    )
-    return [
-        {
-            "short_code": m.short_code,
-            "original_url": m.original_url,
-            "click_count": m.click_count,
-            "created_at": m.created_at.isoformat() if m.created_at else None,
-            "nickname": m.nickname,
-        }
-        for m in mappings
-    ]
-
-
-class NicknameUpdateRequest(BaseModel):
-    nickname: str | None = None
+    return ShortURLStore.get_links(limit, db)
 
 
 @app.patch("/api/links/{short_code}/nickname")
 def update_nickname(short_code: str, payload: NicknameUpdateRequest, db: Session = Depends(get_db)):
-    mapping = db.query(URLMapping).filter(URLMapping.short_code == short_code).first()
-    if not mapping:
-        raise HTTPException(status_code=404, detail="Link not found")
-
-    # If nickname is not changing, allow immediately
-    if mapping.nickname == payload.nickname:
-        return {"status": "success", "nickname": mapping.nickname}
-
-    # Check 7-day limit constraint
-    if mapping.last_nickname_updated_at:
-        delta = datetime.utcnow() - mapping.last_nickname_updated_at
-        if delta < timedelta(days=7):
-            days_left = 7 - delta.days
-            hours_left = 24 - int(delta.seconds / 3600) % 24
-            if days_left > 0:
-                time_str = f"{days_left} day{'s' if days_left != 1 else ''}"
-            else:
-                time_str = f"{hours_left} hour{'s' if hours_left != 1 else ''}"
-            raise HTTPException(
-                status_code=400,
-                detail=f"Nickname can only be updated once every 7 days. Try again in {time_str}."
-            )
-
-    mapping.nickname = payload.nickname
-    mapping.last_nickname_updated_at = datetime.utcnow()
-    db.commit()
-    return {"status": "success", "nickname": mapping.nickname}
+    new_nickname = ShortURLStore.update_nickname(short_code, payload.nickname, db)
+    return {"status": "success", "nickname": new_nickname}
 
 
 @app.delete("/api/links/{short_code}")
 def delete_link(short_code: str, db: Session = Depends(get_db)):
-    mapping = db.query(URLMapping).filter(URLMapping.short_code == short_code).first()
-    if not mapping:
-        raise HTTPException(status_code=404, detail="Link not found")
-    db.delete(mapping)
-    db.commit()
-    if short_code in memory_cache:
-        del memory_cache[short_code]
+    ShortURLStore.delete(short_code, db)
     return {"status": "success"}
 
 
 @app.get("/api/clicks-over-time")
 def get_clicks_over_time(days: int = 14, db: Session = Depends(get_db)):
-    """Return click counts grouped by day for the last N days."""
-    since = datetime.utcnow() - timedelta(days=days)
-    rows = (
-        db.query(
-            func.date(Click.clicked_at).label("day"),
-            func.count(Click.id).label("count"),
-        )
-        .filter(Click.clicked_at >= since)
-        .group_by(func.date(Click.clicked_at))
-        .order_by(func.date(Click.clicked_at))
-        .all()
-    )
-
-    # Build a full date range with zeros for missing days
-    result = {}
-    for i in range(days):
-        d = (datetime.utcnow() - timedelta(days=days - 1 - i)).strftime("%Y-%m-%d")
-        result[d] = 0
-    for row in rows:
-        result[str(row.day)] = row.count
-
-    return [{"date": k, "count": v} for k, v in sorted(result.items())]
+    return ClickTracker.get_clicks_over_time(days, db)
 
 
 @app.get("/{short_code}")
 def redirect_url(short_code: str, background_tasks: BackgroundTasks, db: Session = Depends(get_db)):
-    logger.info(f"Redirecting short code: {short_code}")
-
-    if short_code not in bloom_filter:
-        logger.warning(f"Bloom filter rejected: {short_code}")
-        raise HTTPException(status_code=404, detail="Short code not found")
-
-    cached_url = memory_cache.get(short_code)
-    if cached_url:
-        logger.info(f"Cache hit: {short_code}")
-        background_tasks.add_task(record_click, short_code)
-        return RedirectResponse(url=cached_url)
-
-    mapping = db.query(URLMapping).filter(URLMapping.short_code == short_code).first()
-    if not mapping:
-        logger.warning(f"Short code not found: {short_code}")
-        raise HTTPException(status_code=404, detail="Short code not found")
-
-    memory_cache[short_code] = mapping.original_url
-    logger.info(f"Cache miss, stored in memory cache: {short_code}")
-
-    background_tasks.add_task(record_click, short_code)
-    return RedirectResponse(url=mapping.original_url)
+    url = ShortURLStore.resolve(short_code, db)
+    background_tasks.add_task(ClickTracker.record, short_code)
+    return RedirectResponse(url=url)
