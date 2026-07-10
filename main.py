@@ -3,9 +3,10 @@
 # ============================================================================
 import os
 
-from fastapi import FastAPI, Depends
+from fastapi import FastAPI, Depends, BackgroundTasks
 # FastAPI = web framework for building APIs
 # Depends = FastAPI's way to inject dependencies (we'll use this for DB)
+# BackgroundTasks = FastAPI's built-in way to run tasks after returning response
 
 from fastapi.responses import RedirectResponse, FileResponse
 # RedirectResponse = sends an HTTP redirect to the browser (301/302)
@@ -44,23 +45,12 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 
-import redis
+# In-memory cache for redirects
+memory_cache = {}
 
-redis_client = redis.Redis(host='redis', port=6379, decode_responses=True)
-
-
-from celery import Celery
-
-celery_app = Celery('url_shortener', broker='redis://redis:6379/0')
-
-@celery_app.task
 def log_click(short_code: str):
     logger.info(f"Click logged for: {short_code}")
 
-celery_app.conf.update(
-    broker_url='redis://redis:6379/0',
-    result_backend='redis://redis:6379/0'
-)
 app = FastAPI()
 if os.path.exists("static"):
     app.mount("/static", StaticFiles(directory="static"), name="static")
@@ -73,10 +63,17 @@ if os.path.exists("static"):
 
 
 
-DATABASE_URL = "sqlite:///./shortener.db"
+DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./shortener.db")
 
+# Render and other platforms sometimes pass postgres:// instead of postgresql://
+if DATABASE_URL.startswith("postgres://"):
+    DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql://", 1)
 
-engine = create_engine(DATABASE_URL, connect_args={"check_same_thread": False})
+connect_args = {}
+if DATABASE_URL.startswith("sqlite"):
+    connect_args = {"check_same_thread": False}
+
+engine = create_engine(DATABASE_URL, connect_args=connect_args)
 
 
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
@@ -154,6 +151,20 @@ def read_root():
 # ============================================================================
 from pybloom_live import BloomFilter
 bloom_filter = BloomFilter(capacity=1000000, error_rate=0.001)
+
+@app.on_event("startup")
+def load_bloom_filter():
+    db = SessionLocal()
+    try:
+        mappings = db.query(URLMapping.short_code).all()
+        for m in mappings:
+            bloom_filter.add(m.short_code)
+        logger.info(f"Loaded {len(mappings)} short codes into Bloom Filter.")
+    except Exception as e:
+        logger.error(f"Failed to populate Bloom filter on startup: {e}")
+    finally:
+        db.close()
+
 @app.post("/shorten")
 # @app.post() = FastAPI decorator that registers a POST endpoint at "/shorten"
 # Client sends JSON data in the body, not in the URL
@@ -190,15 +201,16 @@ def shorten(request: URLRequest, db: Session = Depends(get_db)):
     # Now url_mapping.id is populated (1, 2, 3, etc)
 
     bloom_filter.add(short_code)  # Add to bloom filter
+    memory_cache[short_code] = request.original_url  # Add to cache
     logger.info(f"Created short code: {short_code}")
     
     return {"short_code": short_code}
- 
+
 
 
 
 @app.get("/{short_code}")
-def redirect_url(short_code: str, db: Session = Depends(get_db)):
+def redirect_url(short_code: str, background_tasks: BackgroundTasks, db: Session = Depends(get_db)):
     logger.info(f"Redirecting short code: {short_code}")
     
     # Check Bloom filter
@@ -206,11 +218,11 @@ def redirect_url(short_code: str, db: Session = Depends(get_db)):
         logger.warning(f"Bloom filter rejected: {short_code}")
         raise HTTPException(status_code=404, detail="Short code not found")
     
-    # Check Redis
-    cached_url = redis_client.get(short_code)
+    # Check In-Memory Cache
+    cached_url = memory_cache.get(short_code)
     if cached_url:
         logger.info(f"Cache hit: {short_code}")
-        log_click.delay(short_code)  # Queue async
+        background_tasks.add_task(log_click, short_code)
         return RedirectResponse(url=cached_url)
     
     # Query DB
@@ -220,11 +232,11 @@ def redirect_url(short_code: str, db: Session = Depends(get_db)):
         logger.warning(f"Short code not found: {short_code}")
         raise HTTPException(status_code=404, detail="Short code not found")
     
-    # Store in Redis
-    redis_client.set(short_code, mapping.original_url)
-    logger.info(f"Cache miss, stored in Redis: {short_code}")
+    # Store in In-Memory Cache
+    memory_cache[short_code] = mapping.original_url
+    logger.info(f"Cache miss, stored in memory cache: {short_code}")
     
-    log_click.delay(short_code)  # Queue async
+    background_tasks.add_task(log_click, short_code)
     return RedirectResponse(url=mapping.original_url)
 # ============================================================================
 # HOW TO RUN THIS

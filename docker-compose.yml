@@ -10,22 +10,4 @@ services:
     volumes:
       - .:/app
     environment:
-      - DATABASE_URL=sqlite:///./shortener.db
-
-  redis:
-    image: redis:7-alpine
-    ports:
-      - "6379:6379"
-
-  celery:
-    build:
-      context: .
-      dockerfile: Dockerfile
-    command: ["celery", "-A", "main.celery_app", "worker", "--loglevel=info"]
-    depends_on:
-      redis:
-        condition: service_started
-      app:
-        condition: service_started
-    environment:
-      - CELERY_BROKER_URL=redis://redis:6379/0
+      - DATABASE_URL=${DATABASE_URL:-sqlite:///./shortener.db}
