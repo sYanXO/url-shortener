@@ -3,370 +3,1142 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>URL Shortener</title>
+  <title>Shorty — URL Shortener</title>
+  <meta name="description" content="A fast, minimal URL shortener with real-time analytics." />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
   <style>
+    /* =============================================
+       RESET & BASE
+    ============================================= */
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
+    :root {
+      --bg:        #0a0a0a;
+      --surface:   #111111;
+      --surface-2: #1a1a1a;
+      --border:    rgba(255,255,255,0.07);
+      --border-2:  rgba(255,255,255,0.12);
+      --text-1:    #f5f5f5;
+      --text-2:    #a1a1a1;
+      --text-3:    #6b6b6b;
+      --accent:    #f5f5f5;
+      --accent-dim: rgba(245,245,245,0.08);
+      --danger:    #ff4444;
+      --success:   #22c55e;
+      --radius:    10px;
+      --sidebar-w: 280px;
+      --transition: 0.15s ease;
+    }
+
+    html, body { height: 100%; }
+
     body {
-      font-family: 'Inter', system-ui, -apple-system, sans-serif;
-      min-height: 100vh;
+      font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'SF Pro Text', 'Inter', 'Helvetica Neue', sans-serif;
+      background: var(--bg);
+      color: var(--text-1);
       display: flex;
-      align-items: center;
-      justify-content: center;
-      padding: 1rem;
-      background: #0b0e1a;
-      background-image:
-        radial-gradient(ellipse at 20% 50%, rgba(99,102,241,0.12) 0%, transparent 60%),
-        radial-gradient(ellipse at 80% 50%, rgba(168,85,247,0.10) 0%, transparent 60%),
-        radial-gradient(ellipse at 50% 0%, rgba(99,102,241,0.06) 0%, transparent 50%);
-      position: relative;
-      overflow-x: hidden;
+      height: 100vh;
+      overflow: hidden;
+      font-size: 14px;
+      -webkit-font-smoothing: antialiased;
     }
 
-    body::before {
-      content: '';
-      position: fixed;
-      inset: 0;
-      background-image:
-        repeating-linear-gradient(0deg, transparent, transparent 40px, rgba(255,255,255,0.012) 40px, rgba(255,255,255,0.012) 41px),
-        repeating-linear-gradient(90deg, transparent, transparent 40px, rgba(255,255,255,0.012) 40px, rgba(255,255,255,0.012) 41px);
-      pointer-events: none;
-      z-index: 0;
+    /* =============================================
+       SIDEBAR
+    ============================================= */
+    .sidebar {
+      width: var(--sidebar-w);
+      flex-shrink: 0;
+      background: var(--surface);
+      border-right: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+      height: 100vh;
+      overflow: hidden;
     }
 
-    .card {
-      position: relative;
-      z-index: 1;
-      background: rgba(18, 22, 42, 0.85);
-      backdrop-filter: blur(24px);
-      -webkit-backdrop-filter: blur(24px);
-      border: 1px solid rgba(255,255,255,0.06);
-      border-radius: 24px;
-      padding: 2.5rem 2rem 2rem;
-      width: 100%;
-      max-width: 480px;
-      box-shadow:
-        0 24px 80px rgba(0,0,0,0.5),
-        0 0 0 1px rgba(255,255,255,0.02) inset;
-      animation: fadeUp 0.6s ease-out;
-    }
-
-    @keyframes fadeUp {
-      from { opacity: 0; transform: translateY(20px); }
-      to   { opacity: 1; transform: translateY(0); }
+    .sidebar-header {
+      padding: 20px 20px 0;
+      flex-shrink: 0;
     }
 
     .logo {
       display: flex;
       align-items: center;
-      gap: 0.65rem;
-      margin-bottom: 0.35rem;
+      gap: 10px;
+      margin-bottom: 28px;
     }
 
-    .logo-icon {
-      width: 36px;
-      height: 36px;
-      border-radius: 10px;
-      background: linear-gradient(135deg, #6366f1, #a855f7);
+    .logo-mark {
+      width: 28px;
+      height: 28px;
+      background: var(--text-1);
+      border-radius: 7px;
       display: flex;
       align-items: center;
       justify-content: center;
-      font-size: 1.15rem;
-      color: #fff;
-      font-weight: 700;
+      flex-shrink: 0;
     }
 
-    .logo h1 {
-      font-size: 1.45rem;
-      font-weight: 700;
-      color: #f1f5f9;
+    .logo-mark svg { color: var(--bg); }
+
+    .logo-name {
+      font-size: 15px;
+      font-weight: 600;
       letter-spacing: -0.02em;
+      color: var(--text-1);
     }
 
-    .sub {
-      color: #64748b;
-      font-size: 0.9rem;
-      margin-bottom: 1.75rem;
-      margin-left: calc(36px + 0.65rem);
+    /* Shortener form in sidebar */
+    .shorten-section {
+      padding: 0 16px;
+      flex-shrink: 0;
     }
 
-    form {
+    .shorten-section label {
+      display: block;
+      font-size: 11px;
+      font-weight: 500;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      color: var(--text-3);
+      margin-bottom: 10px;
+    }
+
+    .input-group {
       display: flex;
       flex-direction: column;
-      gap: 0.75rem;
+      gap: 8px;
     }
 
-    .input-wrap {
+    .url-input-wrap {
       position: relative;
     }
 
-    .input-wrap svg {
+    .url-input-wrap .input-icon {
       position: absolute;
-      left: 14px;
+      left: 11px;
       top: 50%;
       transform: translateY(-50%);
-      width: 18px;
-      height: 18px;
-      color: #475569;
+      color: var(--text-3);
       pointer-events: none;
-      transition: color 0.2s;
+      transition: color var(--transition);
     }
 
-    .input-wrap:focus-within svg { color: #818cf8; }
+    .url-input-wrap:focus-within .input-icon { color: var(--text-2); }
 
-    input[type="url"] {
+    #url-input {
       width: 100%;
-      padding: 0.85rem 1rem 0.85rem 42px;
-      border-radius: 12px;
-      border: 1.5px solid rgba(255,255,255,0.08);
-      background: rgba(15, 23, 42, 0.6);
-      color: #e2e8f0;
-      font-size: 0.95rem;
+      padding: 9px 10px 9px 34px;
+      background: var(--surface-2);
+      border: 1px solid var(--border-2);
+      border-radius: var(--radius);
+      color: var(--text-1);
+      font-size: 13px;
       font-family: inherit;
       outline: none;
-      transition: border-color 0.2s, box-shadow 0.2s;
+      transition: border-color var(--transition), box-shadow var(--transition);
     }
 
-    input[type="url"]::placeholder { color: #475569; }
+    #url-input::placeholder { color: var(--text-3); }
 
-    input[type="url"]:focus {
-      border-color: rgba(99,102,241,0.5);
-      box-shadow: 0 0 0 3px rgba(99,102,241,0.15);
+    #url-input:focus {
+      border-color: rgba(255,255,255,0.25);
+      box-shadow: 0 0 0 3px rgba(255,255,255,0.04);
     }
 
-    button[type="submit"] {
+    #shorten-btn {
       width: 100%;
-      padding: 0.82rem;
+      padding: 9px;
+      background: var(--text-1);
+      color: var(--bg);
       border: none;
-      border-radius: 12px;
-      background: linear-gradient(135deg, #6366f1, #7c3aed);
-      color: #fff;
-      font-size: 0.95rem;
+      border-radius: var(--radius);
+      font-size: 13px;
       font-weight: 600;
       font-family: inherit;
       cursor: pointer;
-      transition: opacity 0.2s, transform 0.15s, box-shadow 0.2s;
+      transition: opacity var(--transition), transform var(--transition);
       position: relative;
       overflow: hidden;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
     }
 
-    button[type="submit"]:hover:not(:disabled) {
-      opacity: 0.92;
-      transform: translateY(-1px);
-      box-shadow: 0 8px 28px rgba(99,102,241,0.35);
-    }
+    #shorten-btn:hover:not(:disabled) { opacity: 0.88; transform: translateY(-1px); }
+    #shorten-btn:active:not(:disabled) { transform: translateY(0); opacity: 0.95; }
+    #shorten-btn:disabled { opacity: 0.4; cursor: not-allowed; }
 
-    button[type="submit"]:active:not(:disabled) {
-      transform: translateY(0);
-    }
-
-    button[type="submit"]:disabled { opacity: 0.6; cursor: not-allowed; }
-
-    .spinner {
-      display: none;
-      width: 20px;
-      height: 20px;
-      border: 2.5px solid rgba(255,255,255,0.3);
-      border-top-color: #fff;
+    .btn-spinner {
+      width: 14px;
+      height: 14px;
+      border: 2px solid rgba(0,0,0,0.2);
+      border-top-color: var(--bg);
       border-radius: 50%;
       animation: spin 0.6s linear infinite;
-      position: absolute;
-      left: 50%;
-      top: 50%;
-      transform: translate(-50%, -50%);
-    }
-
-    @keyframes spin { to { transform: translate(-50%, -50%) rotate(360deg); } }
-
-    button[type="submit"] .btn-text {
-      transition: opacity 0.15s;
-    }
-
-    button[type="submit"]:disabled .btn-text { opacity: 0; }
-    button[type="submit"]:disabled .spinner { display: block; }
-
-    .result {
-      margin-top: 1.5rem;
-      padding: 1rem 1.15rem;
-      border-radius: 14px;
-      background: rgba(34,197,94,0.07);
-      border: 1px solid rgba(34,197,94,0.2);
       display: none;
-      animation: fadeUp 0.35s ease-out;
     }
 
-    .result.show { display: flex; align-items: center; gap: 0.75rem; }
+    #shorten-btn.loading .btn-text { display: none; }
+    #shorten-btn.loading .btn-spinner { display: block; }
 
-    .result .url-text {
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* Result box */
+    .result-box {
+      margin: 10px 16px 0;
+      padding: 12px;
+      background: rgba(34,197,94,0.06);
+      border: 1px solid rgba(34,197,94,0.18);
+      border-radius: var(--radius);
+      display: none;
+      animation: fadeIn 0.2s ease;
+    }
+
+    .result-box.show { display: block; }
+
+    .result-label {
+      font-size: 10px;
+      font-weight: 600;
+      letter-spacing: 0.07em;
+      text-transform: uppercase;
+      color: #22c55e;
+      margin-bottom: 6px;
+    }
+
+    .result-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .result-link {
       flex: 1;
       min-width: 0;
-    }
-
-    .result .url-label {
-      font-size: 0.7rem;
-      text-transform: uppercase;
-      letter-spacing: 0.06em;
-      color: #22c55e;
-      font-weight: 600;
-      margin-bottom: 0.2rem;
-    }
-
-    .result a {
-      display: block;
+      font-size: 13px;
       color: #86efac;
-      font-weight: 500;
       text-decoration: none;
-      font-size: 0.92rem;
-      word-break: break-all;
-      line-height: 1.4;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      font-weight: 500;
     }
 
-    .result a:hover { text-decoration: underline; }
+    .result-link:hover { text-decoration: underline; }
 
     .copy-btn {
       flex-shrink: 0;
-      width: 38px;
-      height: 38px;
-      border-radius: 10px;
-      border: 1px solid rgba(34,197,94,0.25);
+      width: 28px;
+      height: 28px;
       background: rgba(34,197,94,0.1);
+      border: 1px solid rgba(34,197,94,0.2);
+      border-radius: 7px;
       color: #22c55e;
       cursor: pointer;
       display: flex;
       align-items: center;
       justify-content: center;
-      transition: background 0.2s, border-color 0.2s;
+      transition: background var(--transition), border-color var(--transition);
     }
 
-    .copy-btn:hover {
-      background: rgba(34,197,94,0.18);
-      border-color: rgba(34,197,94,0.4);
-    }
+    .copy-btn:hover { background: rgba(34,197,94,0.18); border-color: rgba(34,197,94,0.35); }
+    .copy-btn svg { width: 13px; height: 13px; }
 
-    .copy-btn svg { width: 18px; height: 18px; }
-
-    .copy-btn.copied {
-      color: #22c55e;
-      border-color: #22c55e;
-    }
-
-    .error {
-      margin-top: 1.5rem;
-      padding: 0.9rem 1.15rem;
-      border-radius: 14px;
-      background: rgba(239,68,68,0.07);
-      border: 1px solid rgba(239,68,68,0.2);
+    /* Error box */
+    .error-box {
+      margin: 8px 16px 0;
+      padding: 10px 12px;
+      background: rgba(255,68,68,0.06);
+      border: 1px solid rgba(255,68,68,0.18);
+      border-radius: var(--radius);
+      font-size: 12px;
       color: #fca5a5;
-      font-size: 0.9rem;
       display: none;
-      animation: fadeUp 0.35s ease-out;
+      animation: fadeIn 0.2s ease;
     }
 
-    .error.show { display: block; }
+    .error-box.show { display: block; }
 
-    .footer {
-      margin-top: 2rem;
+    /* Sidebar nav */
+    .sidebar-nav {
+      padding: 20px 16px 0;
+      flex-shrink: 0;
+    }
+
+    .nav-label {
+      font-size: 10px;
+      font-weight: 600;
+      letter-spacing: 0.07em;
+      text-transform: uppercase;
+      color: var(--text-3);
+      padding: 0 6px;
+      margin-bottom: 6px;
+    }
+
+    .nav-item {
+      display: flex;
+      align-items: center;
+      gap: 9px;
+      padding: 8px 10px;
+      border-radius: 8px;
+      color: var(--text-2);
+      cursor: pointer;
+      transition: background var(--transition), color var(--transition);
+      font-size: 13.5px;
+      font-weight: 450;
+      margin-bottom: 1px;
+      border: none;
+      background: none;
+      width: 100%;
+      text-align: left;
+    }
+
+    .nav-item:hover { background: var(--accent-dim); color: var(--text-1); }
+    .nav-item.active { background: var(--accent-dim); color: var(--text-1); }
+    .nav-item svg { width: 15px; height: 15px; flex-shrink: 0; opacity: 0.7; }
+    .nav-item.active svg { opacity: 1; }
+
+    .sidebar-footer {
+      margin-top: auto;
+      padding: 16px;
+      border-top: 1px solid var(--border);
+      flex-shrink: 0;
+    }
+
+    .footer-text {
+      font-size: 11px;
+      color: var(--text-3);
       text-align: center;
     }
 
-    .footer a {
-      color: #475569;
-      font-size: 0.78rem;
-      text-decoration: none;
-      transition: color 0.2s;
+    /* =============================================
+       MAIN CONTENT
+    ============================================= */
+    .main {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      height: 100vh;
+      overflow: hidden;
     }
 
-    .footer a:hover { color: #64748b; }
+    /* Top bar */
+    .topbar {
+      height: 52px;
+      padding: 0 28px;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-shrink: 0;
+      background: var(--bg);
+    }
+
+    .page-title {
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--text-1);
+      letter-spacing: -0.01em;
+    }
+
+    .topbar-actions {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .refresh-btn {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 6px 12px;
+      background: none;
+      border: 1px solid var(--border-2);
+      border-radius: 8px;
+      color: var(--text-2);
+      font-size: 12px;
+      font-family: inherit;
+      cursor: pointer;
+      transition: background var(--transition), color var(--transition);
+    }
+
+    .refresh-btn:hover { background: var(--accent-dim); color: var(--text-1); }
+    .refresh-btn svg { width: 13px; height: 13px; }
+    .refresh-btn.spinning svg { animation: spin 0.7s linear infinite; }
+
+    /* Content area */
+    .content {
+      flex: 1;
+      overflow-y: auto;
+      padding: 28px;
+    }
+
+    .content::-webkit-scrollbar { width: 6px; }
+    .content::-webkit-scrollbar-track { background: transparent; }
+    .content::-webkit-scrollbar-thumb { background: var(--border-2); border-radius: 3px; }
+
+    /* Views */
+    .view { display: none; }
+    .view.active { display: block; }
+
+    /* =============================================
+       STAT CARDS
+    ============================================= */
+    .stats-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+      gap: 14px;
+      margin-bottom: 28px;
+    }
+
+    .stat-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 20px;
+      transition: border-color var(--transition);
+    }
+
+    .stat-card:hover { border-color: var(--border-2); }
+
+    .stat-label {
+      font-size: 11px;
+      font-weight: 500;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+      color: var(--text-3);
+      margin-bottom: 10px;
+    }
+
+    .stat-value {
+      font-size: 32px;
+      font-weight: 700;
+      color: var(--text-1);
+      letter-spacing: -0.03em;
+      line-height: 1;
+    }
+
+    /* =============================================
+       CHART
+    ============================================= */
+    .chart-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 24px;
+      margin-bottom: 28px;
+    }
+
+    .card-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 20px;
+    }
+
+    .card-title {
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--text-1);
+    }
+
+    .card-subtitle {
+      font-size: 12px;
+      color: var(--text-3);
+    }
+
+    .chart-wrap {
+      height: 180px;
+      position: relative;
+    }
+
+    /* =============================================
+       LINKS TABLE
+    ============================================= */
+    .table-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      overflow: hidden;
+      margin-bottom: 28px;
+    }
+
+    .table-card .card-header {
+      padding: 18px 20px 0;
+      margin-bottom: 0;
+      border-bottom: 1px solid var(--border);
+      padding-bottom: 14px;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+    }
+
+    thead th {
+      padding: 10px 20px;
+      text-align: left;
+      font-size: 11px;
+      font-weight: 500;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+      color: var(--text-3);
+      border-bottom: 1px solid var(--border);
+    }
+
+    tbody tr {
+      border-bottom: 1px solid var(--border);
+      transition: background var(--transition);
+    }
+
+    tbody tr:last-child { border-bottom: none; }
+    tbody tr:hover { background: var(--accent-dim); }
+
+    tbody td {
+      padding: 13px 20px;
+      font-size: 13px;
+      vertical-align: middle;
+    }
+
+    .td-short {
+      font-family: 'SF Mono', 'Fira Code', monospace;
+      font-size: 12.5px;
+      color: var(--text-1);
+    }
+
+    .short-link {
+      color: var(--text-1);
+      text-decoration: none;
+    }
+
+    .short-link:hover { text-decoration: underline; }
+
+    .td-original {
+      color: var(--text-2);
+      max-width: 300px;
+    }
+
+    .td-original span {
+      display: block;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .td-clicks {
+      color: var(--text-1);
+      font-weight: 500;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .td-date {
+      color: var(--text-3);
+      font-variant-numeric: tabular-nums;
+      white-space: nowrap;
+    }
+
+    .td-actions {
+      width: 40px;
+    }
+
+    .table-copy-btn {
+      width: 28px;
+      height: 28px;
+      background: none;
+      border: 1px solid var(--border-2);
+      border-radius: 7px;
+      color: var(--text-3);
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: background var(--transition), border-color var(--transition), color var(--transition);
+    }
+
+    .table-copy-btn:hover { background: var(--accent-dim); border-color: var(--border-2); color: var(--text-1); }
+    .table-copy-btn svg { width: 13px; height: 13px; }
+
+    /* Rank badge */
+    .rank-badge {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 22px;
+      height: 22px;
+      background: var(--surface-2);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--text-3);
+      margin-right: 10px;
+    }
+
+    .rank-badge.top { background: rgba(245,245,245,0.06); color: var(--text-2); border-color: var(--border-2); }
+
+    /* Empty state */
+    .empty-state {
+      padding: 60px 20px;
+      text-align: center;
+      color: var(--text-3);
+      font-size: 13px;
+    }
+
+    /* =============================================
+       RECENT LINKS VIEW
+    ============================================= */
+    .recent-grid {
+      display: grid;
+      gap: 10px;
+    }
+
+    .link-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 14px 16px;
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      transition: border-color var(--transition);
+      animation: fadeIn 0.2s ease;
+    }
+
+    .link-card:hover { border-color: var(--border-2); }
+
+    .link-card-icon {
+      width: 34px;
+      height: 34px;
+      background: var(--surface-2);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+      color: var(--text-3);
+    }
+
+    .link-card-icon svg { width: 15px; height: 15px; }
+
+    .link-card-body { flex: 1; min-width: 0; }
+
+    .link-card-short {
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--text-1);
+      text-decoration: none;
+      font-family: 'SF Mono', 'Fira Code', monospace;
+      font-size: 12.5px;
+    }
+
+    .link-card-short:hover { text-decoration: underline; }
+
+    .link-card-original {
+      font-size: 12px;
+      color: var(--text-3);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      margin-top: 2px;
+    }
+
+    .link-card-meta {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      flex-shrink: 0;
+    }
+
+    .link-card-clicks {
+      font-size: 12px;
+      color: var(--text-3);
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+
+    .link-card-clicks svg { width: 12px; height: 12px; }
+
+    /* =============================================
+       SKELETON LOADER
+    ============================================= */
+    .skeleton {
+      background: linear-gradient(90deg, var(--surface-2) 25%, rgba(255,255,255,0.04) 50%, var(--surface-2) 75%);
+      background-size: 200% 100%;
+      animation: shimmer 1.4s infinite;
+      border-radius: 6px;
+    }
+
+    @keyframes shimmer { to { background-position: -200% 0; } }
+    @keyframes fadeIn { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: translateY(0); } }
+
+    /* =============================================
+       RESPONSIVE
+    ============================================= */
+    @media (max-width: 768px) {
+      .sidebar { width: 100%; height: auto; flex-direction: row; }
+      body { flex-direction: column; }
+    }
   </style>
 </head>
 <body>
-  <div class="card">
-    <div class="logo">
-      <div class="logo-icon">S</div>
-      <h1>Shorty</h1>
-    </div>
-    <p class="sub">Paste a long URL and get a short, shareable link.</p>
-
-    <form id="shorten-form">
-      <div class="input-wrap">
-        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1"/></svg>
-        <input type="url" id="url-input" placeholder="https://example.com/very/long/url" required />
+  <!-- ========== SIDEBAR ========== -->
+  <aside class="sidebar">
+    <div class="sidebar-header">
+      <div class="logo">
+        <div class="logo-mark">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M10 13a5 5 0 007.54.54l3-3a5 5 0 00-7.07-7.07l-1.72 1.71"/>
+            <path d="M14 11a5 5 0 00-7.54-.54l-3 3a5 5 0 007.07 7.07l1.71-1.71"/>
+          </svg>
+        </div>
+        <span class="logo-name">Shorty</span>
       </div>
-      <button type="submit" id="submit-btn">
-        <span class="btn-text">Shorten</span>
-        <span class="spinner"></span>
-      </button>
-    </form>
-
-    <div class="result" id="result">
-      <div class="url-text">
-        <div class="url-label">Your short link</div>
-        <a href="#" id="result-link" target="_blank" rel="noopener"></a>
-      </div>
-      <button class="copy-btn" id="copy-btn" title="Copy to clipboard">
-        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>
-      </button>
     </div>
 
-    <div class="error" id="error"></div>
-  </div>
+    <div class="shorten-section">
+      <label for="url-input">Shorten a URL</label>
+      <div class="input-group">
+        <div class="url-input-wrap">
+          <svg class="input-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/>
+          </svg>
+          <input type="url" id="url-input" placeholder="https://example.com/..." autocomplete="off" />
+        </div>
+        <button id="shorten-btn">
+          <span class="btn-text">Create Short Link</span>
+          <span class="btn-spinner"></span>
+        </button>
+      </div>
+    </div>
+
+    <div class="result-box" id="result-box">
+      <div class="result-label">Link created</div>
+      <div class="result-row">
+        <a href="#" id="result-link" target="_blank" rel="noopener" class="result-link"></a>
+        <button class="copy-btn" id="sidebar-copy-btn" title="Copy to clipboard">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/>
+          </svg>
+        </button>
+      </div>
+    </div>
+
+    <div class="error-box" id="error-box"></div>
+
+    <nav class="sidebar-nav">
+      <div class="nav-label">Views</div>
+      <button class="nav-item active" data-view="overview" id="nav-overview">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/>
+          <rect x="14" y="14" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/>
+        </svg>
+        Overview
+      </button>
+      <button class="nav-item" data-view="links" id="nav-links">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M10 13a5 5 0 007.54.54l3-3a5 5 0 00-7.07-7.07l-1.72 1.71"/>
+          <path d="M14 11a5 5 0 00-7.54-.54l-3 3a5 5 0 007.07 7.07l1.71-1.71"/>
+        </svg>
+        All Links
+      </button>
+    </nav>
+
+    <div class="sidebar-footer">
+      <p class="footer-text">Shorty &mdash; Fast URL shortener</p>
+    </div>
+  </aside>
+
+  <!-- ========== MAIN ========== -->
+  <main class="main">
+    <div class="topbar">
+      <span class="page-title" id="page-title">Overview</span>
+      <div class="topbar-actions">
+        <button class="refresh-btn" id="refresh-btn">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/>
+            <path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/>
+            <path d="M8 16H3v5"/>
+          </svg>
+          Refresh
+        </button>
+      </div>
+    </div>
+
+    <div class="content">
+
+      <!-- ── OVERVIEW VIEW ── -->
+      <div class="view active" id="view-overview">
+
+        <div class="stats-grid" id="stats-grid">
+          <div class="stat-card">
+            <div class="stat-label">Total Links</div>
+            <div class="stat-value skeleton" style="width:60px;height:36px;border-radius:6px" id="stat-links">&nbsp;</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-label">Total Clicks</div>
+            <div class="stat-value skeleton" style="width:60px;height:36px;border-radius:6px" id="stat-clicks">&nbsp;</div>
+          </div>
+        </div>
+
+        <div class="chart-card">
+          <div class="card-header">
+            <span class="card-title">Clicks over time</span>
+            <span class="card-subtitle">Last 14 days</span>
+          </div>
+          <div class="chart-wrap">
+            <canvas id="clicks-chart"></canvas>
+          </div>
+        </div>
+
+        <div class="table-card">
+          <div class="card-header">
+            <span class="card-title">Top Links</span>
+            <span class="card-subtitle">Sorted by clicks</span>
+          </div>
+          <table>
+            <thead>
+              <tr>
+                <th>#</th>
+                <th>Short</th>
+                <th>Destination</th>
+                <th>Clicks</th>
+                <th>Created</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody id="top-links-tbody">
+              <tr><td colspan="6"><div class="empty-state">Loading…</div></td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- ── ALL LINKS VIEW ── -->
+      <div class="view" id="view-links">
+        <div class="recent-grid" id="recent-grid">
+          <div class="empty-state">Loading…</div>
+        </div>
+      </div>
+
+    </div>
+  </main>
 
   <script>
-    const form = document.getElementById("shorten-form");
-    const input = document.getElementById("url-input");
-    const button = document.getElementById("submit-btn");
-    const result = document.getElementById("result");
-    const resultLink = document.getElementById("result-link");
-    const copyBtn = document.getElementById("copy-btn");
-    const errorBox = document.getElementById("error");
+    // =============================================
+    // STATE
+    // =============================================
+    let allLinks = [];
+    let chartInstance = null;
+    const origin = window.location.origin;
 
-    form.addEventListener("submit", async (e) => {
-      e.preventDefault();
-      errorBox.classList.remove("show");
-      result.classList.remove("show");
-      button.disabled = true;
+    // =============================================
+    // ELEMENTS
+    // =============================================
+    const urlInput       = document.getElementById('url-input');
+    const shortenBtn     = document.getElementById('shorten-btn');
+    const resultBox      = document.getElementById('result-box');
+    const resultLink     = document.getElementById('result-link');
+    const sidebarCopyBtn = document.getElementById('sidebar-copy-btn');
+    const errorBox       = document.getElementById('error-box');
+    const refreshBtn     = document.getElementById('refresh-btn');
+    const statLinks      = document.getElementById('stat-links');
+    const statClicks     = document.getElementById('stat-clicks');
+    const topLinksTbody  = document.getElementById('top-links-tbody');
+    const recentGrid     = document.getElementById('recent-grid');
+    const pageTitle      = document.getElementById('page-title');
+
+    // =============================================
+    // NAVIGATION
+    // =============================================
+    document.querySelectorAll('.nav-item').forEach(btn => {
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('.nav-item').forEach(b => b.classList.remove('active'));
+        document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+        btn.classList.add('active');
+        const viewId = 'view-' + btn.dataset.view;
+        document.getElementById(viewId).classList.add('active');
+        pageTitle.textContent = btn.textContent.trim();
+      });
+    });
+
+    // =============================================
+    // FORMAT HELPERS
+    // =============================================
+    function fmt(n) {
+      if (n >= 1_000_000) return (n / 1_000_000).toFixed(1) + 'M';
+      if (n >= 1_000) return (n / 1_000).toFixed(1) + 'K';
+      return String(n);
+    }
+
+    function fmtDate(iso) {
+      if (!iso) return '—';
+      const d = new Date(iso);
+      return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+    }
+
+    function fmtShortDate(isoDate) {
+      const d = new Date(isoDate + 'T00:00:00Z');
+      return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' });
+    }
+
+    function truncate(str, max = 50) {
+      return str.length > max ? str.slice(0, max) + '…' : str;
+    }
+
+    // =============================================
+    // COPY HELPER
+    // =============================================
+    function copyToClipboard(text, btn) {
+      navigator.clipboard.writeText(text).then(() => {
+        const original = btn.innerHTML;
+        btn.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>`;
+        setTimeout(() => { btn.innerHTML = original; }, 2000);
+      }).catch(() => {});
+    }
+
+    // =============================================
+    // SHORTEN
+    // =============================================
+    shortenBtn.addEventListener('click', async () => {
+      const url = urlInput.value.trim();
+      if (!url) return;
+
+      errorBox.classList.remove('show');
+      resultBox.classList.remove('show');
+      shortenBtn.classList.add('loading');
+      shortenBtn.disabled = true;
 
       try {
-        const response = await fetch("/shorten", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ original_url: input.value.trim() }),
+        const res = await fetch('/shorten', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ original_url: url }),
         });
 
-        if (!response.ok) {
-          const data = await response.json().catch(() => ({}));
-          throw new Error(data.detail || "Something went wrong.");
-        }
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(data.detail || 'Something went wrong.');
 
-        const data = await response.json();
-        const shortUrl = window.location.origin + "/" + data.short_code;
+        const shortUrl = origin + '/' + data.short_code;
         resultLink.href = shortUrl;
         resultLink.textContent = shortUrl;
-        result.classList.add("show");
-        input.value = "";
+        resultBox.classList.add('show');
+        urlInput.value = '';
+
+        // Refresh data to reflect the new link
+        await loadData();
       } catch (err) {
         errorBox.textContent = err.message;
-        errorBox.classList.add("show");
+        errorBox.classList.add('show');
       } finally {
-        button.disabled = false;
+        shortenBtn.classList.remove('loading');
+        shortenBtn.disabled = false;
       }
     });
 
-    copyBtn.addEventListener("click", async () => {
-      const url = resultLink.href;
-      if (!url) return;
-      try {
-        await navigator.clipboard.writeText(url);
-        copyBtn.classList.add("copied");
-        copyBtn.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>';
-        setTimeout(() => {
-          copyBtn.classList.remove("copied");
-          copyBtn.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>';
-        }, 2000);
-      } catch {}
+    urlInput.addEventListener('keydown', e => {
+      if (e.key === 'Enter') shortenBtn.click();
     });
+
+    sidebarCopyBtn.addEventListener('click', () => {
+      copyToClipboard(resultLink.href, sidebarCopyBtn);
+    });
+
+    // =============================================
+    // STATS
+    // =============================================
+    async function loadStats() {
+      try {
+        const res = await fetch('/api/stats');
+        const data = await res.json();
+        statLinks.classList.remove('skeleton');
+        statLinks.style = '';
+        statLinks.textContent = fmt(data.total_links);
+        statClicks.classList.remove('skeleton');
+        statClicks.style = '';
+        statClicks.textContent = fmt(data.total_clicks);
+      } catch (e) {
+        statLinks.textContent = '—';
+        statClicks.textContent = '—';
+      }
+    }
+
+    // =============================================
+    // CHART
+    // =============================================
+    async function loadChart() {
+      try {
+        const res = await fetch('/api/clicks-over-time?days=14');
+        const data = await res.json();
+        const labels = data.map(d => fmtShortDate(d.date));
+        const values = data.map(d => d.count);
+
+        const ctx = document.getElementById('clicks-chart').getContext('2d');
+        if (chartInstance) chartInstance.destroy();
+
+        chartInstance = new Chart(ctx, {
+          type: 'line',
+          data: {
+            labels,
+            datasets: [{
+              data: values,
+              borderColor: 'rgba(245,245,245,0.7)',
+              borderWidth: 1.5,
+              backgroundColor: 'rgba(245,245,245,0.03)',
+              pointRadius: 3,
+              pointHoverRadius: 5,
+              pointBackgroundColor: 'rgba(245,245,245,0.8)',
+              pointBorderColor: 'transparent',
+              fill: true,
+              tension: 0.35,
+            }]
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+              legend: { display: false },
+              tooltip: {
+                backgroundColor: '#1a1a1a',
+                borderColor: 'rgba(255,255,255,0.1)',
+                borderWidth: 1,
+                titleColor: '#a1a1a1',
+                bodyColor: '#f5f5f5',
+                padding: 10,
+                callbacks: {
+                  label: ctx => ` ${ctx.parsed.y} click${ctx.parsed.y !== 1 ? 's' : ''}`,
+                }
+              }
+            },
+            scales: {
+              x: {
+                grid: { color: 'rgba(255,255,255,0.04)', drawBorder: false },
+                ticks: { color: '#6b6b6b', font: { size: 11 }, maxRotation: 0 }
+              },
+              y: {
+                grid: { color: 'rgba(255,255,255,0.04)', drawBorder: false },
+                ticks: { color: '#6b6b6b', font: { size: 11 }, precision: 0 },
+                beginAtZero: true,
+              }
+            }
+          }
+        });
+      } catch (e) {}
+    }
+
+    // =============================================
+    // LINKS TABLE (Top Links)
+    // =============================================
+    function renderTopLinks(links) {
+      if (!links.length) {
+        topLinksTbody.innerHTML = `<tr><td colspan="6"><div class="empty-state">No links yet. Create your first one!</div></td></tr>`;
+        return;
+      }
+
+      topLinksTbody.innerHTML = links.slice(0, 10).map((l, i) => {
+        const shortUrl = origin + '/' + l.short_code;
+        const isTop = i < 3;
+        return `
+          <tr>
+            <td><span class="rank-badge ${isTop ? 'top' : ''}">${i + 1}</span></td>
+            <td class="td-short"><a href="${shortUrl}" target="_blank" rel="noopener" class="short-link">${l.short_code}</a></td>
+            <td class="td-original"><span title="${l.original_url}">${truncate(l.original_url, 52)}</span></td>
+            <td class="td-clicks">${fmt(l.click_count)}</td>
+            <td class="td-date">${fmtDate(l.created_at)}</td>
+            <td class="td-actions">
+              <button class="table-copy-btn" title="Copy short link" onclick="copyToClipboard('${shortUrl}', this)">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/>
+                </svg>
+              </button>
+            </td>
+          </tr>`;
+      }).join('');
+    }
+
+    // =============================================
+    // RECENT LINKS CARDS (All Links view)
+    // =============================================
+    function renderRecentGrid(links) {
+      if (!links.length) {
+        recentGrid.innerHTML = `<div class="empty-state">No links yet. Create your first one!</div>`;
+        return;
+      }
+
+      // Sort by created_at descending for the all-links view
+      const sorted = [...links].sort((a, b) => {
+        if (!a.created_at) return 1;
+        if (!b.created_at) return -1;
+        return new Date(b.created_at) - new Date(a.created_at);
+      });
+
+      recentGrid.innerHTML = sorted.map(l => {
+        const shortUrl = origin + '/' + l.short_code;
+        return `
+          <div class="link-card">
+            <div class="link-card-icon">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M10 13a5 5 0 007.54.54l3-3a5 5 0 00-7.07-7.07l-1.72 1.71"/>
+                <path d="M14 11a5 5 0 00-7.54-.54l-3 3a5 5 0 007.07 7.07l1.71-1.71"/>
+              </svg>
+            </div>
+            <div class="link-card-body">
+              <a href="${shortUrl}" target="_blank" rel="noopener" class="link-card-short">${shortUrl}</a>
+              <div class="link-card-original" title="${l.original_url}">${l.original_url}</div>
+            </div>
+            <div class="link-card-meta">
+              <span class="link-card-clicks">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M15 3h4a2 2 0 012 2v14a2 2 0 01-2 2h-4M10 17l5-5-5-5M13.8 12H3"/>
+                </svg>
+                ${fmt(l.click_count)}
+              </span>
+              <button class="table-copy-btn" title="Copy short link" onclick="copyToClipboard('${shortUrl}', this)">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/>
+                </svg>
+              </button>
+            </div>
+          </div>`;
+      }).join('');
+    }
+
+    // =============================================
+    // LOAD ALL DATA
+    // =============================================
+    async function loadLinks() {
+      try {
+        const res = await fetch('/api/links?limit=100');
+        allLinks = await res.json();
+        renderTopLinks(allLinks);
+        renderRecentGrid(allLinks);
+      } catch (e) {
+        topLinksTbody.innerHTML = `<tr><td colspan="6"><div class="empty-state">Failed to load links.</div></td></tr>`;
+      }
+    }
+
+    async function loadData() {
+      await Promise.all([loadStats(), loadChart(), loadLinks()]);
+    }
+
+    // =============================================
+    // REFRESH BUTTON
+    // =============================================
+    refreshBtn.addEventListener('click', async () => {
+      refreshBtn.classList.add('spinning');
+      await loadData();
+      setTimeout(() => refreshBtn.classList.remove('spinning'), 600);
+    });
+
+    // =============================================
+    // INIT
+    // =============================================
+    loadData();
   </script>
 </body>
 </html>
