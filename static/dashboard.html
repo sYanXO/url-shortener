@@ -748,6 +748,29 @@
     </div>
   </div>
 
+  <!-- Nickname Edit Modal Backdrop -->
+  <div id="nickname-modal" class="modal-backdrop" onclick="closeNicknameModal(event)">
+    <div class="modal-content" onclick="event.stopPropagation()" style="max-width: 380px;">
+      <div class="modal-header">
+        <h3 class="modal-title">Edit Nickname</h3>
+        <button class="modal-close" onclick="closeNicknameModal()">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+        </button>
+      </div>
+      <div style="text-align: left; font-size: 13px; color: var(--text-2); line-height: 1.5; margin-bottom: 16px;">
+        Friendly nickname for this link for easy searches.
+        <div style="margin-top: 8px; color: var(--text-3); font-size: 11px; border-left: 2px solid var(--border-2); padding-left: 8px;">
+          ⚠️ Note: Nickname updates are limited. You can only change the nickname once every 7 days.
+        </div>
+      </div>
+      <input type="text" id="nickname-edit-input" class="search-input" placeholder="Type nickname here..." style="margin-bottom: 20px; width: 100%;" autocomplete="off" />
+      <div style="display: flex; gap: 8px; justify-content: flex-end;">
+        <button onclick="closeNicknameModal()" style="padding: 8px 14px; background: transparent; border: 1px solid var(--border-2); color: var(--text-2); border-radius: 8px; font-size: 12px; cursor: pointer; transition: background var(--transition);">Cancel</button>
+        <button id="nickname-save-btn" style="padding: 8px 14px; background: var(--text-1); border: none; color: var(--bg); border-radius: 8px; font-size: 12px; font-weight: 600; cursor: pointer; transition: opacity var(--transition);" onclick="executeNicknameSave()">Save Nickname</button>
+      </div>
+    </div>
+  </div>
+
   <script>
     // =============================================
     // STATE
@@ -1099,21 +1122,46 @@
       }
     });
 
-    window.editNickname = async function(shortCode, currentNickname) {
-      const newNickname = prompt(`Enter new nickname for ${shortCode}:`, currentNickname);
-      if (newNickname === null) return; // Prompt cancelled
+    let nicknameTargetCode = '';
+
+    window.editNickname = function(shortCode, currentNickname) {
+      nicknameTargetCode = shortCode;
+      const input = document.getElementById('nickname-edit-input');
+      input.value = currentNickname || '';
+      document.getElementById('nickname-modal').classList.add('show');
+      setTimeout(() => input.focus(), 50);
+    };
+
+    window.executeNicknameSave = async function() {
+      if (!nicknameTargetCode) return;
+      const input = document.getElementById('nickname-edit-input');
+      const newNickname = input.value.trim() || null;
       try {
-        const res = await fetch(`/api/links/${shortCode}/nickname`, {
+        const res = await fetch(`/api/links/${nicknameTargetCode}/nickname`, {
           method: 'PATCH',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ nickname: newNickname.trim() || null })
+          body: JSON.stringify({ nickname: newNickname })
         });
-        if (!res.ok) throw new Error('Failed to update nickname');
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.detail || 'Failed to update nickname');
+        closeNicknameModal();
         await loadData();
       } catch (e) {
         alert(e.message);
       }
     };
+
+    window.closeNicknameModal = function() {
+      const modal = document.getElementById('nickname-modal');
+      modal.classList.remove('show');
+      nicknameTargetCode = '';
+    };
+
+    document.getElementById('nickname-edit-input').addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') {
+        executeNicknameSave();
+      }
+    });
 
     // =============================================
     // LOAD ALL DATA

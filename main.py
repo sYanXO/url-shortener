@@ -59,6 +59,7 @@ class URLMapping(Base):
     short_code = Column(String, unique=True, index=True)
     original_url = Column(String)
     nickname = Column(String, nullable=True)
+    last_nickname_updated_at = Column(DateTime, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
     click_count = Column(Integer, default=0)
 
@@ -79,7 +80,7 @@ Base.metadata.create_all(bind=engine)
 
 # Safe migration: add new columns to existing databases that predate them
 def _safe_migrate():
-    """Add created_at, click_count, and nickname to url_mappings if they don't exist yet."""
+    """Add created_at, click_count, nickname, and last_nickname_updated_at to url_mappings if they don't exist yet."""
     from sqlalchemy import text, inspect
     # PostgreSQL uses TIMESTAMP; SQLite uses DATETIME
     is_pg = DATABASE_URL.startswith("postgresql")
@@ -100,6 +101,10 @@ def _safe_migrate():
                 conn.execute(text("ALTER TABLE url_mappings ADD COLUMN nickname VARCHAR(255)"))
                 conn.commit()
                 logger.info("Migration: added nickname column")
+            if "last_nickname_updated_at" not in existing_cols:
+                conn.execute(text(f"ALTER TABLE url_mappings ADD COLUMN last_nickname_updated_at {ts_type}"))
+                conn.commit()
+                logger.info("Migration: added last_nickname_updated_at column")
     except Exception as e:
         logger.warning(f"Migration skipped or failed: {e}")
 
@@ -313,7 +318,28 @@ def update_nickname(short_code: str, payload: NicknameUpdateRequest, db: Session
     mapping = db.query(URLMapping).filter(URLMapping.short_code == short_code).first()
     if not mapping:
         raise HTTPException(status_code=404, detail="Link not found")
+
+    # If nickname is not changing, allow immediately
+    if mapping.nickname == payload.nickname:
+        return {"status": "success", "nickname": mapping.nickname}
+
+    # Check 7-day limit constraint
+    if mapping.last_nickname_updated_at:
+        delta = datetime.utcnow() - mapping.last_nickname_updated_at
+        if delta < timedelta(days=7):
+            days_left = 7 - delta.days
+            hours_left = 24 - int(delta.seconds / 3600) % 24
+            if days_left > 0:
+                time_str = f"{days_left} day{'s' if days_left != 1 else ''}"
+            else:
+                time_str = f"{hours_left} hour{'s' if hours_left != 1 else ''}"
+            raise HTTPException(
+                status_code=400,
+                detail=f"Nickname can only be updated once every 7 days. Try again in {time_str}."
+            )
+
     mapping.nickname = payload.nickname
+    mapping.last_nickname_updated_at = datetime.utcnow()
     db.commit()
     return {"status": "success", "nickname": mapping.nickname}
 
