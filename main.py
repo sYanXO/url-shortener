@@ -58,6 +58,7 @@ class URLMapping(Base):
     id = Column(Integer, primary_key=True, index=True)
     short_code = Column(String, unique=True, index=True)
     original_url = Column(String)
+    nickname = Column(String, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
     click_count = Column(Integer, default=0)
 
@@ -78,7 +79,7 @@ Base.metadata.create_all(bind=engine)
 
 # Safe migration: add new columns to existing databases that predate them
 def _safe_migrate():
-    """Add created_at and click_count to url_mappings if they don't exist yet."""
+    """Add created_at, click_count, and nickname to url_mappings if they don't exist yet."""
     from sqlalchemy import text, inspect
     # PostgreSQL uses TIMESTAMP; SQLite uses DATETIME
     is_pg = DATABASE_URL.startswith("postgresql")
@@ -95,6 +96,10 @@ def _safe_migrate():
                 conn.execute(text(f"ALTER TABLE url_mappings ADD COLUMN created_at {ts_type}"))
                 conn.commit()
                 logger.info("Migration: added created_at column")
+            if "nickname" not in existing_cols:
+                conn.execute(text("ALTER TABLE url_mappings ADD COLUMN nickname VARCHAR(255)"))
+                conn.commit()
+                logger.info("Migration: added nickname column")
     except Exception as e:
         logger.warning(f"Migration skipped or failed: {e}")
 
@@ -209,6 +214,7 @@ def record_click(short_code: str):
 # ============================================================================
 class URLRequest(BaseModel):
     original_url: str
+    nickname: str | None = None
 
     @field_validator("original_url")
     @classmethod
@@ -244,6 +250,7 @@ def shorten(request: Request, payload: URLRequest, db: Session = Depends(get_db)
     url_mapping = URLMapping(
         short_code=short_code,
         original_url=payload.original_url,
+        nickname=payload.nickname,
         created_at=datetime.utcnow(),
         click_count=0,
     )
@@ -291,9 +298,36 @@ def get_links(limit: int = 50, db: Session = Depends(get_db)):
             "original_url": m.original_url,
             "click_count": m.click_count,
             "created_at": m.created_at.isoformat() if m.created_at else None,
+            "nickname": m.nickname,
         }
         for m in mappings
     ]
+
+
+class NicknameUpdateRequest(BaseModel):
+    nickname: str | None = None
+
+
+@app.patch("/api/links/{short_code}/nickname")
+def update_nickname(short_code: str, payload: NicknameUpdateRequest, db: Session = Depends(get_db)):
+    mapping = db.query(URLMapping).filter(URLMapping.short_code == short_code).first()
+    if not mapping:
+        raise HTTPException(status_code=404, detail="Link not found")
+    mapping.nickname = payload.nickname
+    db.commit()
+    return {"status": "success", "nickname": mapping.nickname}
+
+
+@app.delete("/api/links/{short_code}")
+def delete_link(short_code: str, db: Session = Depends(get_db)):
+    mapping = db.query(URLMapping).filter(URLMapping.short_code == short_code).first()
+    if not mapping:
+        raise HTTPException(status_code=404, detail="Link not found")
+    db.delete(mapping)
+    db.commit()
+    if short_code in memory_cache:
+        del memory_cache[short_code]
+    return {"status": "success"}
 
 
 @app.get("/api/clicks-over-time")

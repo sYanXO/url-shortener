@@ -158,6 +158,26 @@
       box-shadow: 0 0 0 3px rgba(255,255,255,0.04);
     }
 
+    #nickname-input {
+      width: 100%;
+      padding: 12px 14px 12px 42px;
+      background: var(--surface-2);
+      border: 1px solid var(--border-2);
+      border-radius: var(--radius);
+      color: var(--text-1);
+      font-size: 14px;
+      font-family: inherit;
+      outline: none;
+      transition: border-color var(--transition), box-shadow var(--transition);
+    }
+
+    #nickname-input::placeholder { color: var(--text-3); }
+
+    #nickname-input:focus {
+      border-color: rgba(255,255,255,0.25);
+      box-shadow: 0 0 0 3px rgba(255,255,255,0.04);
+    }
+
     #paste-btn {
       position: absolute;
       right: 12px;
@@ -414,6 +434,12 @@
         <input type="url" id="url-input" placeholder="https://example.com/..." autocomplete="off" />
         <button id="paste-btn" type="button" title="Paste from clipboard">Paste</button>
       </div>
+      <div class="url-input-wrap">
+        <svg class="input-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color: var(--text-3);">
+          <path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/>
+        </svg>
+        <input type="text" id="nickname-input" placeholder="Give it a nickname... (optional)" autocomplete="off" />
+      </div>
       <button id="shorten-btn">
         <span class="btn-text">Create Short Link</span>
         <span class="btn-spinner"></span>
@@ -456,6 +482,7 @@
 
   <script>
     const urlInput = document.getElementById('url-input');
+    const nicknameInput = document.getElementById('nickname-input');
     const shortenBtn = document.getElementById('shorten-btn');
     const pasteBtn = document.getElementById('paste-btn');
     const resultBox = document.getElementById('result-box');
@@ -496,11 +523,11 @@
       return JSON.parse(localStorage.getItem('shorty_history') || '[]');
     }
 
-    function addHistoryItem(code, originalUrl) {
+    function addHistoryItem(code, originalUrl, nickname) {
       let history = getHistory();
       // Remove duplicate if exists
       history = history.filter(item => item.code !== code);
-      history.unshift({ code, url: originalUrl });
+      history.unshift({ code, url: originalUrl, nickname });
       // Keep max 5
       if (history.length > 5) history.pop();
       localStorage.setItem('shorty_history', JSON.stringify(history));
@@ -516,11 +543,13 @@
       historyBox.classList.add('show');
       historyList.innerHTML = history.map(item => {
         const shortUrl = location.origin + '/' + item.code;
+        const displayTitle = item.nickname ? `🏷️ ${item.nickname}` : shortUrl;
+        const displaySub = item.nickname ? shortUrl : item.url;
         return `
           <div class="history-item">
             <div class="history-info">
-              <a href="${shortUrl}" target="_blank" rel="noopener noreferrer" class="history-short">${shortUrl}</a>
-              <div class="history-original" title="${item.url}">${item.url}</div>
+              <a href="${shortUrl}" target="_blank" rel="noopener noreferrer" class="history-short">${displayTitle}</a>
+              <div class="history-original" title="${item.url}">${displaySub}</div>
             </div>
             <button class="copy-btn" onclick="copyToClipboard('${shortUrl}', this)" title="Copy short link">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -537,8 +566,15 @@
     });
 
     shortenBtn.addEventListener('click', async () => {
-      const url = urlInput.value.trim();
+      let url = urlInput.value.trim();
       if (!url) return;
+
+      // Auto-prefix https:// if missing
+      if (!/^https?:\/\//i.test(url)) {
+        url = 'https://' + url;
+      }
+
+      const nickname = nicknameInput.value.trim() || null;
 
       errorBox.classList.remove('show');
       resultBox.classList.remove('show');
@@ -551,7 +587,7 @@
         const res = await fetch('/shorten', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ original_url: url }),
+          body: JSON.stringify({ original_url: url, nickname: nickname }),
         });
 
         const data = await res.json().catch(() => ({}));
@@ -566,9 +602,10 @@
         
         resultBox.classList.add('show');
         urlInput.value = '';
+        nicknameInput.value = '';
 
         // Add to local history
-        addHistoryItem(data.short_code, url);
+        addHistoryItem(data.short_code, url, nickname);
       } catch (err) {
         errorBox.textContent = err.message;
         errorBox.classList.add('show');
@@ -579,6 +616,10 @@
     });
 
     urlInput.addEventListener('keydown', e => {
+      if (e.key === 'Enter') shortenBtn.click();
+    });
+
+    nicknameInput.addEventListener('keydown', e => {
       if (e.key === 'Enter') shortenBtn.click();
     });
 

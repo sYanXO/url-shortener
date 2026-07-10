@@ -92,178 +92,6 @@
       color: var(--text-1);
     }
 
-    /* Shortener form in sidebar */
-    .shorten-section {
-      padding: 0 16px;
-      flex-shrink: 0;
-    }
-
-    .shorten-section label {
-      display: block;
-      font-size: 11px;
-      font-weight: 500;
-      letter-spacing: 0.06em;
-      text-transform: uppercase;
-      color: var(--text-3);
-      margin-bottom: 10px;
-    }
-
-    .input-group {
-      display: flex;
-      flex-direction: column;
-      gap: 8px;
-    }
-
-    .url-input-wrap {
-      position: relative;
-    }
-
-    .url-input-wrap .input-icon {
-      position: absolute;
-      left: 11px;
-      top: 50%;
-      transform: translateY(-50%);
-      color: var(--text-3);
-      pointer-events: none;
-      transition: color var(--transition);
-    }
-
-    .url-input-wrap:focus-within .input-icon { color: var(--text-2); }
-
-    #url-input {
-      width: 100%;
-      padding: 9px 10px 9px 34px;
-      background: var(--surface-2);
-      border: 1px solid var(--border-2);
-      border-radius: var(--radius);
-      color: var(--text-1);
-      font-size: 13px;
-      font-family: inherit;
-      outline: none;
-      transition: border-color var(--transition), box-shadow var(--transition);
-    }
-
-    #url-input::placeholder { color: var(--text-3); }
-
-    #url-input:focus {
-      border-color: rgba(255,255,255,0.25);
-      box-shadow: 0 0 0 3px rgba(255,255,255,0.04);
-    }
-
-    #shorten-btn {
-      width: 100%;
-      padding: 9px;
-      background: var(--text-1);
-      color: var(--bg);
-      border: none;
-      border-radius: var(--radius);
-      font-size: 13px;
-      font-weight: 600;
-      font-family: inherit;
-      cursor: pointer;
-      transition: opacity var(--transition), transform var(--transition);
-      position: relative;
-      overflow: hidden;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      gap: 6px;
-    }
-
-    #shorten-btn:hover:not(:disabled) { opacity: 0.88; transform: translateY(-1px); }
-    #shorten-btn:active:not(:disabled) { transform: translateY(0); opacity: 0.95; }
-    #shorten-btn:disabled { opacity: 0.4; cursor: not-allowed; }
-
-    .btn-spinner {
-      width: 14px;
-      height: 14px;
-      border: 2px solid rgba(0,0,0,0.2);
-      border-top-color: var(--bg);
-      border-radius: 50%;
-      animation: spin 0.6s linear infinite;
-      display: none;
-    }
-
-    #shorten-btn.loading .btn-text { display: none; }
-    #shorten-btn.loading .btn-spinner { display: block; }
-
-    @keyframes spin { to { transform: rotate(360deg); } }
-
-    /* Result box */
-    .result-box {
-      margin: 10px 16px 0;
-      padding: 12px;
-      background: rgba(34,197,94,0.06);
-      border: 1px solid rgba(34,197,94,0.18);
-      border-radius: var(--radius);
-      display: none;
-      animation: fadeIn 0.2s ease;
-    }
-
-    .result-box.show { display: block; }
-
-    .result-label {
-      font-size: 10px;
-      font-weight: 600;
-      letter-spacing: 0.07em;
-      text-transform: uppercase;
-      color: #22c55e;
-      margin-bottom: 6px;
-    }
-
-    .result-row {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-    }
-
-    .result-link {
-      flex: 1;
-      min-width: 0;
-      font-size: 13px;
-      color: #86efac;
-      text-decoration: none;
-      white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
-      font-weight: 500;
-    }
-
-    .result-link:hover { text-decoration: underline; }
-
-    .copy-btn {
-      flex-shrink: 0;
-      width: 28px;
-      height: 28px;
-      background: rgba(34,197,94,0.1);
-      border: 1px solid rgba(34,197,94,0.2);
-      border-radius: 7px;
-      color: #22c55e;
-      cursor: pointer;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      transition: background var(--transition), border-color var(--transition);
-    }
-
-    .copy-btn:hover { background: rgba(34,197,94,0.18); border-color: rgba(34,197,94,0.35); }
-    .copy-btn svg { width: 13px; height: 13px; }
-
-    /* Error box */
-    .error-box {
-      margin: 8px 16px 0;
-      padding: 10px 12px;
-      background: rgba(255,68,68,0.06);
-      border: 1px solid rgba(255,68,68,0.18);
-      border-radius: var(--radius);
-      font-size: 12px;
-      color: #fca5a5;
-      display: none;
-      animation: fadeIn 0.2s ease;
-    }
-
-    .error-box.show { display: block; }
-
     /* Sidebar nav */
     .sidebar-nav {
       padding: 20px 16px 0;
@@ -344,6 +172,38 @@
       font-weight: 600;
       color: var(--text-1);
       letter-spacing: -0.01em;
+    }
+
+    .search-wrap {
+      flex: 1;
+      max-width: 320px;
+      margin: 0 24px;
+      position: relative;
+    }
+
+    .search-input {
+      width: 100%;
+      padding: 8px 12px 8px 32px;
+      background: var(--surface-2);
+      border: 1px solid var(--border-2);
+      border-radius: var(--radius);
+      color: var(--text-1);
+      font-size: 13px;
+      outline: none;
+      transition: border-color var(--transition), box-shadow var(--transition);
+    }
+
+    .search-input:focus {
+      border-color: rgba(255,255,255,0.2);
+    }
+
+    .search-icon {
+      position: absolute;
+      left: 10px;
+      top: 50%;
+      transform: translateY(-50%);
+      color: var(--text-3);
+      pointer-events: none;
     }
 
     .topbar-actions {
@@ -453,130 +313,102 @@
     }
 
     .chart-wrap {
-      height: 180px;
+      height: 220px;
       position: relative;
     }
 
     /* =============================================
-       LINKS TABLE
+       TABLES
     ============================================= */
     .table-card {
       background: var(--surface);
       border: 1px solid var(--border);
       border-radius: 12px;
       overflow: hidden;
-      margin-bottom: 28px;
     }
 
     .table-card .card-header {
-      padding: 18px 20px 0;
+      padding: 24px 24px 12px;
       margin-bottom: 0;
-      border-bottom: 1px solid var(--border);
-      padding-bottom: 14px;
+      display: flex;
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 4px;
     }
 
     table {
       width: 100%;
       border-collapse: collapse;
-    }
-
-    thead th {
-      padding: 10px 20px;
-      text-align: left;
-      font-size: 11px;
-      font-weight: 500;
-      letter-spacing: 0.05em;
-      text-transform: uppercase;
-      color: var(--text-3);
-      border-bottom: 1px solid var(--border);
-    }
-
-    tbody tr {
-      border-bottom: 1px solid var(--border);
-      transition: background var(--transition);
-    }
-
-    tbody tr:last-child { border-bottom: none; }
-    tbody tr:hover { background: var(--accent-dim); }
-
-    tbody td {
-      padding: 13px 20px;
       font-size: 13px;
+      text-align: left;
+    }
+
+    th {
+      font-size: 11px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--text-3);
+      padding: 12px 24px;
+      border-bottom: 1px solid var(--border);
+      background: rgba(255,255,255,0.01);
+    }
+
+    td {
+      padding: 14px 24px;
+      border-bottom: 1px solid var(--border);
+      color: var(--text-2);
       vertical-align: middle;
     }
 
-    .td-short {
-      font-family: 'SF Mono', 'Fira Code', monospace;
-      font-size: 12.5px;
-      color: var(--text-1);
-    }
+    tr:last-child td { border-bottom: none; }
+    tr:hover td { background: rgba(255,255,255,0.01); }
 
-    .short-link {
-      color: var(--text-1);
-      text-decoration: none;
-    }
-
-    .short-link:hover { text-decoration: underline; }
-
+    .td-short { font-weight: 600; }
+    .td-short a { color: var(--text-1); text-decoration: none; }
+    .td-short a:hover { text-decoration: underline; }
+    
     .td-original {
-      color: var(--text-2);
-      max-width: 300px;
-    }
-
-    .td-original span {
-      display: block;
-      white-space: nowrap;
+      max-width: 320px;
       overflow: hidden;
       text-overflow: ellipsis;
-    }
-
-    .td-clicks {
-      color: var(--text-1);
-      font-weight: 500;
-      font-variant-numeric: tabular-nums;
-    }
-
-    .td-date {
-      color: var(--text-3);
-      font-variant-numeric: tabular-nums;
       white-space: nowrap;
     }
+    
+    .td-clicks { font-weight: 500; color: var(--text-1); }
 
-    .td-actions {
-      width: 40px;
-    }
+    .td-actions { text-align: right; }
 
+    /* Action buttons */
     .table-copy-btn {
-      width: 28px;
-      height: 28px;
-      background: none;
-      border: 1px solid var(--border-2);
-      border-radius: 7px;
+      background: transparent;
+      border: none;
       color: var(--text-3);
       cursor: pointer;
-      display: flex;
+      padding: 6px;
+      border-radius: 6px;
+      display: inline-flex;
       align-items: center;
       justify-content: center;
-      transition: background var(--transition), border-color var(--transition), color var(--transition);
+      transition: color var(--transition), background var(--transition);
     }
 
-    .table-copy-btn:hover { background: var(--accent-dim); border-color: var(--border-2); color: var(--text-1); }
-    .table-copy-btn svg { width: 13px; height: 13px; }
+    .table-copy-btn:hover { color: var(--text-1); background: var(--surface-2); }
+    .table-copy-btn svg { width: 14px; height: 14px; }
 
-    /* Rank badge */
+    /* Rank badges */
     .rank-badge {
       display: inline-flex;
       align-items: center;
       justify-content: center;
       width: 22px;
       height: 22px;
-      background: var(--surface-2);
-      border: 1px solid var(--border);
       border-radius: 6px;
       font-size: 11px;
       font-weight: 600;
+      background: var(--surface-2);
       color: var(--text-3);
-      margin-right: 10px;
+      border: 1px solid var(--border);
     }
 
     .rank-badge.top { background: rgba(245,245,245,0.06); color: var(--text-2); border-color: var(--border-2); }
@@ -600,43 +432,45 @@
     .link-card {
       background: var(--surface);
       border: 1px solid var(--border);
-      border-radius: 10px;
-      padding: 14px 16px;
+      border-radius: 12px;
+      padding: 16px 20px;
       display: flex;
       align-items: center;
-      gap: 14px;
+      justify-content: space-between;
+      gap: 20px;
       transition: border-color var(--transition);
-      animation: fadeIn 0.2s ease;
     }
 
     .link-card:hover { border-color: var(--border-2); }
 
     .link-card-icon {
-      width: 34px;
-      height: 34px;
+      width: 40px;
+      height: 40px;
+      border-radius: 10px;
       background: var(--surface-2);
       border: 1px solid var(--border);
-      border-radius: 8px;
       display: flex;
       align-items: center;
       justify-content: center;
+      color: var(--text-2);
       flex-shrink: 0;
-      color: var(--text-3);
     }
 
-    .link-card-icon svg { width: 15px; height: 15px; }
+    .link-card-icon svg { width: 18px; height: 18px; }
 
-    .link-card-body { flex: 1; min-width: 0; }
+    .link-card-body {
+      flex: 1;
+      min-width: 0;
+    }
 
     .link-card-short {
-      font-size: 13px;
+      font-size: 14px;
       font-weight: 600;
       color: var(--text-1);
       text-decoration: none;
-      font-family: 'SF Mono', 'Fira Code', monospace;
-      font-size: 12.5px;
+      margin-bottom: 4px;
+      display: inline-block;
     }
-
     .link-card-short:hover { text-decoration: underline; }
 
     .link-card-original {
@@ -645,34 +479,37 @@
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
-      margin-top: 2px;
     }
 
     .link-card-meta {
       display: flex;
       align-items: center;
-      gap: 14px;
+      gap: 16px;
       flex-shrink: 0;
     }
 
     .link-card-clicks {
-      font-size: 12px;
-      color: var(--text-3);
-      display: flex;
+      display: inline-flex;
       align-items: center;
-      gap: 4px;
+      gap: 6px;
+      font-size: 12px;
+      font-weight: 500;
+      color: var(--text-2);
+      background: var(--surface-2);
+      border: 1px solid var(--border);
+      padding: 4px 10px;
+      border-radius: 20px;
     }
 
-    .link-card-clicks svg { width: 12px; height: 12px; }
+    .link-card-clicks svg { width: 12px; height: 12px; opacity: 0.6; }
 
-    /* =============================================
-       SKELETON LOADER
-    ============================================= */
+    /* Skeleton UI helpers */
     .skeleton {
-      background: linear-gradient(90deg, var(--surface-2) 25%, rgba(255,255,255,0.04) 50%, var(--surface-2) 75%);
-      background-size: 200% 100%;
-      animation: shimmer 1.4s infinite;
-      border-radius: 6px;
+      background: linear-gradient(90deg, var(--surface-2) 25%, var(--border-2) 37%, var(--surface-2) 63%);
+      background-size: 400% 100%;
+      animation: shimmer 1.4s ease infinite;
+      color: transparent !important;
+      border-color: transparent !important;
     }
 
     @keyframes shimmer { to { background-position: -200% 0; } }
@@ -790,6 +627,15 @@
   <main class="main">
     <div class="topbar">
       <span class="page-title" id="page-title">Overview</span>
+      
+      <!-- Live Search Bar -->
+      <div class="search-wrap">
+        <svg class="search-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/>
+        </svg>
+        <input type="text" id="search-input" class="search-input" placeholder="Search links (nickname, URL, short)..." autocomplete="off" />
+      </div>
+
       <div class="topbar-actions">
         <button class="refresh-btn" id="refresh-btn">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -841,7 +687,7 @@
                 <th>Destination</th>
                 <th>Clicks</th>
                 <th>Created</th>
-                <th></th>
+                <th style="text-align: right; padding-right: 24px;">Actions</th>
               </tr>
             </thead>
             <tbody id="top-links-tbody">
@@ -878,6 +724,7 @@
     const topLinksTbody  = document.getElementById('top-links-tbody');
     const recentGrid     = document.getElementById('recent-grid');
     const pageTitle      = document.getElementById('page-title');
+    const searchInput    = document.getElementById('search-input');
 
     // =============================================
     // NAVIGATION
@@ -891,6 +738,21 @@
         document.getElementById(viewId).classList.add('active');
         pageTitle.textContent = btn.textContent.trim();
       });
+    });
+
+    // =============================================
+    // LIVE SEARCH LOGIC
+    // =============================================
+    searchInput.addEventListener('input', () => {
+      const q = searchInput.value.toLowerCase().trim();
+      const filtered = allLinks.filter(l => {
+        const url = (l.original_url || '').toLowerCase();
+        const nickname = (l.nickname || '').toLowerCase();
+        const code = (l.short_code || '').toLowerCase();
+        return url.includes(q) || nickname.includes(q) || code.includes(q);
+      });
+      renderTopLinks(filtered);
+      renderRecentGrid(filtered);
     });
 
     // =============================================
@@ -1015,21 +877,31 @@
     // =============================================
     function renderTopLinks(links) {
       if (!links.length) {
-        topLinksTbody.innerHTML = `<tr><td colspan="6"><div class="empty-state">No links yet. Create your first one!</div></td></tr>`;
+        topLinksTbody.innerHTML = `<tr><td colspan="6"><div class="empty-state">No links found.</div></td></tr>`;
         return;
       }
 
       topLinksTbody.innerHTML = links.slice(0, 10).map((l, i) => {
         const shortUrl = origin + '/' + l.short_code;
         const isTop = i < 3;
+        
+        const nicknameDisplay = l.nickname 
+          ? `<span class="link-nickname" onclick="editNickname('${l.short_code}', '${l.nickname}')" style="cursor: pointer; font-weight: 600; color: var(--text-1); display: inline-flex; align-items: center; gap: 4px;" title="Click to edit nickname">🏷️ ${l.nickname} <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color: var(--text-3); margin-left: 2px;"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg></span>` 
+          : `<span class="link-no-nickname" onclick="editNickname('${l.short_code}', '')" style="cursor: pointer; color: var(--text-3); font-style: italic; display: inline-flex; align-items: center; gap: 4px;" title="Add nickname">Add nickname... <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color: var(--text-3); margin-left: 2px;"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg></span>`;
+
         return `
           <tr>
             <td><span class="rank-badge ${isTop ? 'top' : ''}">${i + 1}</span></td>
-            <td class="td-short"><a href="${shortUrl}" target="_blank" rel="noopener" class="short-link">${l.short_code}</a></td>
-            <td class="td-original"><span title="${l.original_url}">${truncate(l.original_url, 52)}</span></td>
+            <td class="td-short"><a href="${shortUrl}" target="_blank" rel="noopener noreferrer" class="short-link">${l.short_code}</a></td>
+            <td class="td-original">
+              <div style="display: flex; flex-direction: column;">
+                <div style="margin-bottom: 2px;">${nicknameDisplay}</div>
+                <span title="${l.original_url}" style="font-size: 11px; color: var(--text-3);">${truncate(l.original_url, 44)}</span>
+              </div>
+            </td>
             <td class="td-clicks">${fmt(l.click_count)}</td>
             <td class="td-date">${fmtDate(l.created_at)}</td>
-            <td class="td-actions">
+            <td class="td-actions" style="padding-right: 24px;">
               <div style="display: flex; gap: 4px; justify-content: flex-end;">
                 <button class="table-copy-btn" title="Show QR Code" onclick="showQrModal('${shortUrl}')">
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
@@ -1040,6 +912,11 @@
                 <button class="table-copy-btn" title="Copy short link" onclick="copyToClipboard('${shortUrl}', this)">
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                     <rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/>
+                  </svg>
+                </button>
+                <button class="table-copy-btn" title="Delete link" onclick="deleteLink('${l.short_code}')" style="color: var(--danger);">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/>
                   </svg>
                 </button>
               </div>
@@ -1053,7 +930,7 @@
     // =============================================
     function renderRecentGrid(links) {
       if (!links.length) {
-        recentGrid.innerHTML = `<div class="empty-state">No links yet. Create your first one!</div>`;
+        recentGrid.innerHTML = `<div class="empty-state">No links found.</div>`;
         return;
       }
 
@@ -1066,6 +943,11 @@
 
       recentGrid.innerHTML = sorted.map(l => {
         const shortUrl = origin + '/' + l.short_code;
+        
+        const nicknameDisplay = l.nickname 
+          ? `<span class="link-nickname" onclick="editNickname('${l.short_code}', '${l.nickname}')" style="cursor: pointer; font-size: 13px; font-weight: 600; color: var(--text-1); display: inline-flex; align-items: center; gap: 4px;" title="Click to edit nickname">🏷️ ${l.nickname} <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color: var(--text-3); margin-left: 2px;"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg></span>` 
+          : `<span class="link-no-nickname" onclick="editNickname('${l.short_code}', '')" style="cursor: pointer; font-size: 12px; color: var(--text-3); font-style: italic; display: inline-flex; align-items: center; gap: 4px;" title="Add nickname">Add nickname... <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color: var(--text-3); margin-left: 2px;"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg></span>`;
+
         return `
           <div class="link-card">
             <div class="link-card-icon">
@@ -1075,7 +957,8 @@
               </svg>
             </div>
             <div class="link-card-body">
-              <a href="${shortUrl}" target="_blank" rel="noopener" class="link-card-short">${shortUrl}</a>
+              <a href="${shortUrl}" target="_blank" rel="noopener noreferrer" class="link-card-short">${shortUrl}</a>
+              <div style="margin: 4px 0 6px 0;">${nicknameDisplay}</div>
               <div class="link-card-original" title="${l.original_url}">${l.original_url}</div>
             </div>
             <div class="link-card-meta">
@@ -1097,11 +980,46 @@
                     <rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/>
                   </svg>
                 </button>
+                <button class="table-copy-btn" title="Delete link" onclick="deleteLink('${l.short_code}')" style="color: var(--danger);">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/>
+                  </svg>
+                </button>
               </div>
             </div>
           </div>`;
       }).join('');
     }
+
+    // =============================================
+    // LINK MANAGEMENT ACTION TRIGGERS
+    // =============================================
+    window.deleteLink = async function(shortCode) {
+      if (!confirm(`Are you sure you want to delete short link: ${shortCode}?`)) return;
+      try {
+        const res = await fetch(`/api/links/${shortCode}`, { method: 'DELETE' });
+        if (!res.ok) throw new Error('Failed to delete link');
+        await loadData();
+      } catch (e) {
+        alert(e.message);
+      }
+    };
+
+    window.editNickname = async function(shortCode, currentNickname) {
+      const newNickname = prompt(`Enter new nickname for ${shortCode}:`, currentNickname);
+      if (newNickname === null) return; // Prompt cancelled
+      try {
+        const res = await fetch(`/api/links/${shortCode}/nickname`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ nickname: newNickname.trim() || null })
+        });
+        if (!res.ok) throw new Error('Failed to update nickname');
+        await loadData();
+      } catch (e) {
+        alert(e.message);
+      }
+    };
 
     // =============================================
     // LOAD ALL DATA
@@ -1110,8 +1028,18 @@
       try {
         const res = await fetch('/api/links?limit=100');
         allLinks = await res.json();
-        renderTopLinks(allLinks);
-        renderRecentGrid(allLinks);
+        
+        // Apply search input query if active during reload
+        const q = searchInput.value.toLowerCase().trim();
+        const dataToRender = q ? allLinks.filter(l => {
+          const url = (l.original_url || '').toLowerCase();
+          const nickname = (l.nickname || '').toLowerCase();
+          const code = (l.short_code || '').toLowerCase();
+          return url.includes(q) || nickname.includes(q) || code.includes(q);
+        }) : allLinks;
+
+        renderTopLinks(dataToRender);
+        renderRecentGrid(dataToRender);
       } catch (e) {
         topLinksTbody.innerHTML = `<tr><td colspan="6"><div class="empty-state">Failed to load links.</div></td></tr>`;
       }
