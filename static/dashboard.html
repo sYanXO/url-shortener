@@ -1059,48 +1059,165 @@
     }
 
     // =============================================
-    // LINK MANAGEMENT ACTION TRIGGERS
+    // MODAL MANAGER (DEEP ABSTRACTION)
+    // =============================================
+    class ModalManager {
+      constructor() {
+        this.modals = {};
+        document.addEventListener('keydown', (e) => {
+          if (e.key === 'Escape') {
+            this.closeAll();
+          }
+        });
+      }
+
+      register(id, options = {}) {
+        const element = document.getElementById(id);
+        if (!element) return;
+
+        element.addEventListener('click', (e) => {
+          if (e.target === element) {
+            this.close(id);
+          }
+        });
+
+        element.querySelectorAll('.modal-close').forEach(btn => {
+          btn.addEventListener('click', () => this.close(id));
+        });
+
+        this.modals[id] = {
+          element,
+          onOpen: options.onOpen || null,
+          onClose: options.onClose || null,
+          focusElementId: options.focusElementId || null
+        };
+      }
+
+      open(id, contextData = null) {
+        const modal = this.modals[id];
+        if (!modal) return;
+
+        if (modal.onOpen) {
+          modal.onOpen(contextData);
+        }
+
+        modal.element.classList.add('show');
+
+        if (modal.focusElementId) {
+          const focusEl = document.getElementById(modal.focusElementId);
+          if (focusEl) {
+            setTimeout(() => focusEl.focus(), 50);
+          }
+        }
+      }
+
+      close(id) {
+        const modal = this.modals[id];
+        if (!modal) return;
+
+        modal.element.classList.remove('show');
+
+        if (modal.onClose) {
+          modal.onClose();
+        }
+      }
+
+      closeAll() {
+        Object.keys(this.modals).forEach(id => this.close(id));
+      }
+    }
+
+    const modals = new ModalManager();
+
+    // =============================================
+    // LINK MANAGEMENT ACTION TRIGGERS & MODALS
     // =============================================
     let deleteTargetCode = '';
     let deleteTargetConfirmText = '';
+    let nicknameTargetCode = '';
 
-    window.deleteLink = function(shortCode) {
-      const link = allLinks.find(l => l.short_code === shortCode);
-      if (!link) return;
-      deleteTargetCode = shortCode;
-      deleteTargetConfirmText = link.nickname ? link.nickname : shortCode;
+    modals.register('qr-modal', {
+      onOpen: (url) => {
+        document.getElementById('modal-qr-img').src = `https://api.qrserver.com/v1/create-qr-code/?size=200x200&color=0-0-0&bgcolor=ffffff&data=${encodeURIComponent(url)}`;
+        document.getElementById('modal-qr-url').textContent = url;
+      }
+    });
 
-      document.getElementById('delete-target-name').textContent = deleteTargetConfirmText;
-      const confirmInput = document.getElementById('delete-confirm-input');
-      confirmInput.value = '';
+    modals.register('delete-modal', {
+      focusElementId: 'delete-confirm-input',
+      onOpen: (shortCode) => {
+        const link = allLinks.find(l => l.short_code === shortCode);
+        if (!link) return;
+        deleteTargetCode = shortCode;
+        deleteTargetConfirmText = link.nickname ? link.nickname : shortCode;
 
-      const confirmBtn = document.getElementById('delete-confirm-btn');
-      confirmBtn.style.opacity = '0.5';
-      confirmBtn.style.pointerEvents = 'none';
+        document.getElementById('delete-target-name').textContent = deleteTargetConfirmText;
+        document.getElementById('delete-confirm-input').value = '';
 
-      document.getElementById('delete-modal').classList.add('show');
-      setTimeout(() => confirmInput.focus(), 50);
-    };
+        const confirmBtn = document.getElementById('delete-confirm-btn');
+        confirmBtn.style.opacity = '0.5';
+        confirmBtn.style.pointerEvents = 'none';
+      },
+      onClose: () => {
+        deleteTargetCode = '';
+        deleteTargetConfirmText = '';
+      }
+    });
+
+    modals.register('nickname-modal', {
+      focusElementId: 'nickname-edit-input',
+      onOpen: (shortCode) => {
+        nicknameTargetCode = shortCode;
+        const link = allLinks.find(l => l.short_code === shortCode);
+        document.getElementById('nickname-edit-input').value = (link && link.nickname) || '';
+      },
+      onClose: () => {
+        nicknameTargetCode = '';
+      }
+    });
+
+    // Global triggers matching HTML onclick attribute bindings
+    window.showQrModal = (url) => modals.open('qr-modal', url);
+    window.closeQrModal = () => modals.close('qr-modal');
+
+    window.deleteLink = (shortCode) => modals.open('delete-modal', shortCode);
+    window.closeDeleteModal = () => modals.close('delete-modal');
+
+    window.editNickname = (shortCode, currentNickname) => modals.open('nickname-modal', shortCode);
+    window.closeNicknameModal = () => modals.close('nickname-modal');
 
     window.executeDelete = async function() {
       if (!deleteTargetCode) return;
       try {
         const res = await fetch(`/api/links/${deleteTargetCode}`, { method: 'DELETE' });
         if (!res.ok) throw new Error('Failed to delete link');
-        closeDeleteModal();
+        modals.close('delete-modal');
         await loadData();
       } catch (e) {
         alert(e.message);
       }
     };
 
-    window.closeDeleteModal = function(e) {
-      const modal = document.getElementById('delete-modal');
-      modal.classList.remove('show');
-      deleteTargetCode = '';
-      deleteTargetConfirmText = '';
+    window.executeNicknameSave = async function() {
+      if (!nicknameTargetCode) return;
+      const input = document.getElementById('nickname-edit-input');
+      const newNickname = input.value.trim() || null;
+      try {
+        const res = await fetch(`/api/links/${nicknameTargetCode}/nickname`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ nickname: newNickname })
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.detail || 'Failed to update nickname');
+        modals.close('nickname-modal');
+        await loadData();
+      } catch (e) {
+        alert(e.message);
+      }
     };
 
+    // Event Listeners for inputs
     document.getElementById('delete-confirm-input').addEventListener('input', (e) => {
       const val = e.target.value.trim();
       const confirmBtn = document.getElementById('delete-confirm-btn');
@@ -1121,41 +1238,6 @@
         }
       }
     });
-
-    let nicknameTargetCode = '';
-
-    window.editNickname = function(shortCode, currentNickname) {
-      nicknameTargetCode = shortCode;
-      const input = document.getElementById('nickname-edit-input');
-      input.value = currentNickname || '';
-      document.getElementById('nickname-modal').classList.add('show');
-      setTimeout(() => input.focus(), 50);
-    };
-
-    window.executeNicknameSave = async function() {
-      if (!nicknameTargetCode) return;
-      const input = document.getElementById('nickname-edit-input');
-      const newNickname = input.value.trim() || null;
-      try {
-        const res = await fetch(`/api/links/${nicknameTargetCode}/nickname`, {
-          method: 'PATCH',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ nickname: newNickname })
-        });
-        const data = await res.json();
-        if (!res.ok) throw new Error(data.detail || 'Failed to update nickname');
-        closeNicknameModal();
-        await loadData();
-      } catch (e) {
-        alert(e.message);
-      }
-    };
-
-    window.closeNicknameModal = function() {
-      const modal = document.getElementById('nickname-modal');
-      modal.classList.remove('show');
-      nicknameTargetCode = '';
-    };
 
     document.getElementById('nickname-edit-input').addEventListener('keydown', (e) => {
       if (e.key === 'Enter') {
@@ -1204,23 +1286,6 @@
     // INIT
     // =============================================
     loadData();
-
-    // =============================================
-    // QR MODAL LOGIC
-    // =============================================
-    window.showQrModal = function(url) {
-      const modal = document.getElementById('qr-modal');
-      const img = document.getElementById('modal-qr-img');
-      const urlText = document.getElementById('modal-qr-url');
-      img.src = `https://api.qrserver.com/v1/create-qr-code/?size=200x200&color=0-0-0&bgcolor=ffffff&data=${encodeURIComponent(url)}`;
-      urlText.textContent = url;
-      modal.classList.add('show');
-    };
-
-    window.closeQrModal = function(e) {
-      const modal = document.getElementById('qr-modal');
-      modal.classList.remove('show');
-    };
   </script>
 </body>
 </html>
