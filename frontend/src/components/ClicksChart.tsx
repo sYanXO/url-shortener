@@ -61,10 +61,10 @@ export const ClicksChart: React.FC<ClicksChartProps> = ({ data }) => {
       tooltip: {
         mode: 'index',
         intersect: false,
-        backgroundColor: '#1f2028',
+        backgroundColor: 'rgba(22, 23, 29, 0.9)',
         titleColor: '#e5e7eb',
         bodyColor: '#a855f7',
-        borderColor: '#2e303a',
+        borderColor: 'rgba(255, 255, 255, 0.1)',
         borderWidth: 1,
         padding: 10,
         cornerRadius: 6,
@@ -95,8 +95,8 @@ export const ClicksChart: React.FC<ClicksChartProps> = ({ data }) => {
   };
 
   return (
-    <div className="bg-[#16171d] border border-[#2e303a] rounded-xl p-6 shadow-sm hover:border-[#3e404f] transition-all">
-      <h3 className="text-xs font-semibold uppercase tracking-wider text-gray-500 mb-4">
+    <div className="translucent-surface interactive-card rounded-2xl p-6 shadow-2xl animate-enter" style={{ animationDelay: '100ms' }}>
+      <h3 className="text-xs font-semibold uppercase tracking-wider text-gray-500 mb-6">
         Clicks History (Last 14 Days)
       </h3>
       <div className="h-64">

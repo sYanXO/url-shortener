@@ -1,5 +1,7 @@
 import React, { useEffect } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { X } from 'lucide-react';
+import { Button } from './ui/Button';
 
 interface ModalProps {
   isOpen: boolean;
@@ -17,6 +19,8 @@ export const Modal: React.FC<ModalProps> = ({ isOpen, onClose, title, children }
     if (isOpen) {
       window.addEventListener('keydown', handleKeyDown);
       document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = 'unset';
     }
 
     return () => {
@@ -25,33 +29,44 @@ export const Modal: React.FC<ModalProps> = ({ isOpen, onClose, title, children }
     };
   }, [isOpen, onClose]);
 
-  if (!isOpen) return null;
-
   return (
-    <div 
-      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-sm transition-opacity duration-300"
-      onClick={onClose}
-    >
-      <div 
-        className="w-full max-w-md bg-[#16171d] border border-[#2e303a] rounded-xl overflow-hidden shadow-2xl transition-all duration-300 scale-100"
-        onClick={(e) => e.stopPropagation()}
-      >
-        {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-[#2e303a]">
-          <h3 className="text-lg font-semibold text-gray-100">{title}</h3>
-          <button 
+    <AnimatePresence>
+      {isOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          {/* Backdrop */}
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.3, ease: [0.23, 1, 0.32, 1] }}
+            className="absolute inset-0 bg-black/40 backdrop-blur-md"
             onClick={onClose}
-            className="text-gray-400 hover:text-gray-200 transition-colors p-1 rounded-lg hover:bg-[#202127]"
+          />
+
+          {/* Modal Container */}
+          <motion.div
+            initial={{ opacity: 0, scale: 0.95, y: 10 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.95, y: 10 }}
+            transition={{ type: "spring", damping: 25, stiffness: 300 }}
+            className="relative w-full max-w-md glass-panel rounded-3xl overflow-hidden shadow-2xl flex flex-col"
+            onClick={(e) => e.stopPropagation()}
           >
-            <X size={18} />
-          </button>
+            {/* Header */}
+            <div className="flex items-center justify-between px-6 py-5 border-b border-white/5 bg-white/[0.02]">
+              <h3 className="text-lg font-semibold text-gray-100">{title}</h3>
+              <Button variant="ghost" onClick={onClose} className="p-2 min-w-0 min-h-0 h-auto">
+                <X size={18} />
+              </Button>
+            </div>
+            
+            {/* Content */}
+            <div className="p-6">
+              {children}
+            </div>
+          </motion.div>
         </div>
-        
-        {/* Content */}
-        <div className="p-6">
-          {children}
-        </div>
-      </div>
-    </div>
+      )}
+    </AnimatePresence>
   );
 };

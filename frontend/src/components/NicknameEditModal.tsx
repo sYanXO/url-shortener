@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Modal } from './Modal';
 import { ShieldAlert } from 'lucide-react';
+import { Button } from './ui/Button';
 
 interface NicknameEditModalProps {
   isOpen: boolean;
@@ -46,18 +47,18 @@ export const NicknameEditModal: React.FC<NicknameEditModalProps> = ({
 
   return (
     <Modal isOpen={isOpen} onClose={onClose} title="Update Link Nickname">
-      <form onSubmit={handleSubmit} className="space-y-4">
+      <form onSubmit={handleSubmit} className="space-y-5">
         {/* Rate limit warning box */}
-        <div className="flex items-start gap-3 p-3 bg-amber-950/20 border border-amber-900/40 rounded-lg text-amber-200">
-          <ShieldAlert className="shrink-0 mt-0.5" size={18} />
-          <div className="text-xs space-y-1">
+        <div className="flex items-start gap-3 p-4 bg-amber-950/20 border border-amber-900/40 rounded-2xl text-amber-200">
+          <ShieldAlert className="shrink-0 mt-0.5 text-amber-500" size={18} />
+          <div className="text-sm space-y-1">
             <p className="font-semibold text-amber-100">7-Day Restriction Rule</p>
-            <p>Nickname updates are restricted. You can only update this nickname once every 7 days.</p>
+            <p className="text-amber-200/70">Nickname updates are restricted. You can only update this nickname once every 7 days.</p>
           </div>
         </div>
 
         <div className="space-y-2">
-          <label className="text-xs font-semibold text-gray-400">Nickname</label>
+          <label className="text-sm font-medium text-gray-300">Nickname</label>
           <input
             ref={inputRef}
             type="text"
@@ -65,30 +66,29 @@ export const NicknameEditModal: React.FC<NicknameEditModalProps> = ({
             value={nickname}
             onChange={(e) => setNickname(e.target.value)}
             disabled={loading}
-            className="w-full bg-[#202127] border border-[#2e303a] rounded-lg px-3 py-2 text-sm text-gray-100 focus:outline-none focus:border-purple-500 disabled:opacity-50 transition-colors"
+            className="w-full bg-black/20 border border-white/10 rounded-xl px-4 py-3 text-sm text-white placeholder-gray-500 focus:outline-none focus:border-purple-500/50 focus:bg-black/40 disabled:opacity-50 transition-all"
           />
         </div>
 
         {errorMsg && (
-          <p className="text-xs text-red-400 font-medium">{errorMsg}</p>
+          <p className="text-sm text-red-400 font-medium bg-red-950/20 px-3 py-2 rounded-lg">{errorMsg}</p>
         )}
 
-        <div className="flex justify-end gap-3 pt-2">
-          <button
+        <div className="flex justify-end gap-3 pt-4">
+          <Button
             type="button"
+            variant="ghost"
             onClick={onClose}
             disabled={loading}
-            className="px-4 py-2 text-xs font-semibold text-gray-400 hover:text-gray-200 hover:bg-[#202127] rounded-lg disabled:opacity-50 transition-all"
           >
             Cancel
-          </button>
-          <button
+          </Button>
+          <Button
             type="submit"
             disabled={loading}
-            className="px-4 py-2 text-xs font-semibold text-white bg-purple-600 hover:bg-purple-700 disabled:opacity-50 rounded-lg shadow-lg hover:shadow-purple-900/30 transition-all"
           >
             {loading ? 'Saving...' : 'Save Nickname'}
-          </button>
+          </Button>
         </div>
       </form>
     </Modal>
