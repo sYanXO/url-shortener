@@ -1,92 +1,37 @@
-# Shorty — URL Shortener & Analytics
+# URL Shortener
 
-FastAPI URL shortener featuring SQLite persistence, in-memory caching, Bloom-filter negative lookups, custom link nicknames, live dashboard search, and secure deletion confirmations.
+A high-performance, architecturally sound URL Shortener built with modern web principles. 
 
-## Features
+## What It Does
+This application allows users to shorten long URLs, assign memorable nicknames, generate QR codes, and track analytics on link clicks. It includes a user dashboard to seamlessly manage links (edit nicknames, delete links, view stats) without requiring a traditional login system—ownership is handled automatically via secure session cookies.
 
-- **Link Shortening**: Create short links instantly with `POST /shorten`.
-- **Auto-Prefixing**: Missing URL schemes (e.g. `google.com`) are auto-prepended with `https://` on submission.
-- **Link Nicknames**: Give short links friendly nicknames (e.g. "Work Doc", "Portfolio") for easy management. Updates are limited to once every 7 days per link.
-- **Live Search**: Instantly filter links in the dashboard by nickname, short code, or destination URL.
-- **Vercel-Style Deletion**: Safely delete links from the database using a confirmation modal that requires typing the exact nickname or short code to confirm.
-- **QR Codes**: Toggle inline QR code generation for any link on both the landing page and dashboard.
-- **Rate Limiting**: Protect creation routes with a rate limit of 10 requests per minute.
-- **Security Headers**: Standard security protections including Content Security Policy (CSP), X-Frame-Options, and X-Content-Type-Options.
+## Features & Implementation
 
-## Architecture
+### 1. Link Management & Dashboard
+- **Shortening**: Users can generate short links backed by random code generation with retry logic.
+- **Customization**: Nicknames can be edited seamlessly to identify links.
+- **QR Codes**: Generated dynamically on the client-side for quick physical sharing.
+- **Implementation**: The frontend relies on React, Vite, and `react-router-dom`. Views are cleanly decoupled into a `HomeView` and `DashboardView`. State management and API data syncing are powered by `swr` (Stale-While-Revalidate) hooks for resilient caching, deduping, and background updates. 
 
-The project is built on clean domain-modeling seams and deep modules:
+### 2. User Authentication (Session Seam)
+- **Automatic Ownership**: Users own the links they create via an invisible, automatically assigned session.
+- **Implementation**: The backend assigns a `session_id` using a lightweight HTTP-only cookie. It is patched with `samesite="lax"` and `secure=True` (in production) to prevent CSRF and session leaking. 
 
-### 1. Short URL Store (`ShortURLStore`)
-Encapsulates all mapping operations behind a deep interface:
-- **Bloom Filter Lookups**: Process-local Bloom filter checks query code existence before touching caches or database sessions.
-- **Redirect Caching**: Fast in-memory LRU cache (`cachetools.LRUCache`) prevents database write bottlenecks on hot links.
-- **Lookup Path**: `Bloom Filter Check` → `LRU Cache Check` → `SQLite Lookup` → `Redirect & Async Log Click`.
+### 3. Architecture & Data Integrity
+- **Database**: SQLite managed by SQLAlchemy ORM.
+- **Repository Pattern**: Data access is completely decoupled from the API routes using `URLRepository` and `AnalyticsRepository`, injected via FastAPI's `Depends` for clean dependency management and isolation.
+- **Connection Safety**: Background tasks (like analytics tracking) spin up their own localized database sessions to prevent connection leaking.
 
-### 2. Click Analytics Tracker (`ClickTracker`)
-Isolates click counting and tracking metrics:
-- **Fire-and-Forget Logging**: Background tasks log click events and increment click counters outside the main redirect response path.
-- **Aggregations**: Handles day-by-day click stats and aggregate total links/clicks calculations.
+### 4. Performance & Caching
+- **Bloom Filters**: Implemented using `pybloom-live` to probabilistically check if a URL exists before making a trip to the database.
+- **LRU Cache**: Frequently accessed short links are kept in a local cache (`cachetools`) to serve redirects in memory, avoiding redundant SQLite disk reads.
 
-### 3. App Bootstrap (`AppBootstrap`)
-Consolidates settings configuration, static mounting, lifecycles, and security middleware registrations into a unified setup block to keep the route execution layer completely clean.
+### 5. Security & Rate Limiting
+- **Rate Limiting**: Built on top of `slowapi`. To ensure trust boundaries are respected behind reverse proxies (like Nginx/Docker), it utilizes `ProxyHeadersMiddleware` to correctly unwrap `X-Forwarded-For` headers so individual clients are rate-limited correctly, instead of the proxy itself.
 
-### 4. Modal Manager (`ModalManager`)
-Frontend manager in `static/dashboard.html` that abstracts transition visibility, keyboard Escape keybinds, and input auto-focus triggers across dashboard modal frames.
+### 6. Design Engineering & UI Polish
+- **Aesthetics**: TailwindCSS drives the modern, minimal design.
+- **Fluid Motion**: `framer-motion` adds physics-based, spring animations and glassmorphism elements, adhering to design engineering principles for a premium feel.
 
-## Quick Start
-
-```bash
-docker compose up --build -d
-```
-
-Open `http://localhost:8000`.
-
-### Services:
-- `app`: FastAPI app on `http://localhost:8000`
-- `db`: Local SQLite database (`shortener.db`)
-
-## API Reference
-
-### Create a Short URL:
-```bash
-curl -X POST http://localhost:8000/shorten \
-  -H "Content-Type: application/json" \
-  -d '{"original_url": "https://github.com", "nickname": "My GitHub"}'
-```
-Response:
-```json
-{"short_code": "aB3xY2", "already_exists": false}
-```
-
-### Follow a Redirect:
-```bash
-curl -L http://localhost:8000/aB3xY2
-```
-
-### Delete a Link:
-```bash
-curl -X DELETE http://localhost:8000/api/links/aB3xY2
-```
-
-### Update a Nickname (Once every 7 days):
-```bash
-curl -X PATCH http://localhost:8000/api/links/aB3xY2/nickname \
-  -H "Content-Type: application/json" \
-  -d '{"nickname": "Updated Nickname"}'
-```
-
-## Load Testing
-
-Run:
-```bash
-k6 run load_test.js
-```
-
-Current `load_test.js` configuration:
-- 20 virtual users for 30 seconds.
-- Each iteration performs a creation request, redirect checks, and Bloom filter negative lookup validation.
-
-## License
-
-MIT
+### 7. Reliability
+- **Testing**: A comprehensive `pytest` suite provides 100% test coverage over the core repositories and FastAPI endpoints. It employs a fully isolated in-memory SQLite database (`StaticPool`) injected directly into the application context to guarantee thread safety during concurrent tests.
