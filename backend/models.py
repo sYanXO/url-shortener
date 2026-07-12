@@ -38,6 +38,7 @@ class URLMapping(Base):
     last_nickname_updated_at = Column(DateTime, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
     click_count = Column(Integer, default=0)
+    owner_id = Column(String, index=True)
 
     clicks = relationship("Click", back_populates="url_mapping", cascade="all, delete-orphan")
 
@@ -79,6 +80,10 @@ def _safe_migrate():
                 conn.execute(text(f"ALTER TABLE url_mappings ADD COLUMN last_nickname_updated_at {ts_type}"))
                 conn.commit()
                 logger.info("Migration: added last_nickname_updated_at column")
+            if "owner_id" not in existing_cols:
+                conn.execute(text("ALTER TABLE url_mappings ADD COLUMN owner_id VARCHAR(255)"))
+                conn.commit()
+                logger.info("Migration: added owner_id column")
     except Exception as e:
         logger.warning(f"Migration skipped or failed: {e}")
 

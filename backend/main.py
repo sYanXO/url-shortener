@@ -1,15 +1,16 @@
 import os
 import logging
 import time
+import secrets
 from urllib.parse import urlparse
 
-from fastapi import FastAPI, Depends, BackgroundTasks, Request, HTTPException
+from fastapi import FastAPI, Depends, BackgroundTasks, Request, HTTPException, Cookie, Response
 from fastapi.responses import RedirectResponse, FileResponse
 from sqlalchemy.orm import Session
 from pydantic import BaseModel, field_validator
 
 from models import SessionLocal
-from store import ShortURLStore, ClickTracker
+from store import URLRepository, AnalyticsRepository
 from bootstrap import AppBootstrap, limiter
 
 logging.basicConfig(level=logging.INFO)
@@ -26,6 +27,43 @@ def get_db():
     db = SessionLocal()
     try:
         yield db
+    finally:
+        db.close()
+
+
+def get_or_create_session(response: Response, session_id: str | None = Cookie(None)):
+    if not session_id:
+        session_id = secrets.token_hex(16)
+        response.set_cookie(
+            key="session_id", 
+            value=session_id, 
+            httponly=True, 
+            max_age=31536000, 
+            path="/",
+            samesite="lax",
+            secure=os.getenv("ENVIRONMENT") == "production"
+        )
+    return session_id
+
+
+def get_url_repository(request: Request, db: Session = Depends(get_db)) -> URLRepository:
+    return URLRepository(
+        db=db, 
+        cache=request.app.state.memory_cache, 
+        bloom_filter=request.app.state.bloom_filter
+    )
+
+
+def get_analytics_repository(db: Session = Depends(get_db)) -> AnalyticsRepository:
+    return AnalyticsRepository(db)
+
+
+def background_record_click(short_code: str):
+    """Background task to record a click with its own DB session lifecycle."""
+    db = SessionLocal()
+    try:
+        analytics = AnalyticsRepository(db)
+        analytics.record_click(short_code)
     finally:
         db.close()
 
@@ -77,7 +115,6 @@ def read_root():
 @app.get("/dashboard")
 def read_dashboard():
     if os.path.exists("backend/static/index.html"):
-        # For React Router SPA routing, serve index.html for dashboard path
         return FileResponse("backend/static/index.html")
     elif os.path.exists("static/dashboard.html"):
         return FileResponse("static/dashboard.html")
@@ -86,48 +123,68 @@ def read_dashboard():
 
 @app.post("/shorten")
 @limiter.limit("10/minute")
-def shorten(request: Request, payload: URLRequest, db: Session = Depends(get_db)):
-    return ShortURLStore.create(payload.original_url, payload.nickname, db)
+def shorten(
+    request: Request, 
+    payload: URLRequest, 
+    repo: URLRepository = Depends(get_url_repository),
+    owner_id: str = Depends(get_or_create_session)
+):
+    return repo.create(payload.original_url, payload.nickname, owner_id)
 
-
-_stats_cache = {"data": None, "timestamp": 0}
 
 @app.get("/api/stats")
-def get_stats(db: Session = Depends(get_db)):
-    now = time.time()
-    if _stats_cache["data"] is not None and now - _stats_cache["timestamp"] < 10:
-        return _stats_cache["data"]
-
-    stats = ClickTracker.get_stats(db)
-    _stats_cache["data"] = stats
-    _stats_cache["timestamp"] = now
-    return stats
+def get_stats(
+    analytics: AnalyticsRepository = Depends(get_analytics_repository), 
+    owner_id: str = Depends(get_or_create_session)
+):
+    return analytics.get_stats(owner_id)
 
 
 @app.get("/api/links")
-def get_links(limit: int = 50, db: Session = Depends(get_db)):
-    return ShortURLStore.get_links(limit, db)
+def get_links(
+    limit: int = 50, 
+    repo: URLRepository = Depends(get_url_repository), 
+    owner_id: str = Depends(get_or_create_session)
+):
+    return repo.get_links(owner_id, limit)
 
 
 @app.patch("/api/links/{short_code}/nickname")
-def update_nickname(short_code: str, payload: NicknameUpdateRequest, db: Session = Depends(get_db)):
-    new_nickname = ShortURLStore.update_nickname(short_code, payload.nickname, db)
+def update_nickname(
+    short_code: str, 
+    payload: NicknameUpdateRequest, 
+    repo: URLRepository = Depends(get_url_repository),
+    owner_id: str = Depends(get_or_create_session)
+):
+    new_nickname = repo.update_nickname(short_code, payload.nickname, owner_id)
     return {"status": "success", "nickname": new_nickname}
 
 
 @app.delete("/api/links/{short_code}")
-def delete_link(short_code: str, db: Session = Depends(get_db)):
-    ShortURLStore.delete(short_code, db)
+def delete_link(
+    short_code: str, 
+    repo: URLRepository = Depends(get_url_repository),
+    owner_id: str = Depends(get_or_create_session)
+):
+    repo.delete(short_code, owner_id)
     return {"status": "success"}
 
 
 @app.get("/api/clicks-over-time")
-def get_clicks_over_time(days: int = 14, db: Session = Depends(get_db)):
-    return ClickTracker.get_clicks_over_time(days, db)
+def get_clicks_over_time(
+    days: int = 14, 
+    analytics: AnalyticsRepository = Depends(get_analytics_repository), 
+    owner_id: str = Depends(get_or_create_session)
+):
+    return analytics.get_clicks_over_time(owner_id, days)
 
 
 @app.get("/{short_code}")
-def redirect_url(short_code: str, background_tasks: BackgroundTasks, db: Session = Depends(get_db)):
-    url = ShortURLStore.resolve(short_code, db)
-    background_tasks.add_task(ClickTracker.record, short_code)
+def redirect_url(
+    short_code: str, 
+    background_tasks: BackgroundTasks, 
+    repo: URLRepository = Depends(get_url_repository)
+):
+    url = repo.resolve(short_code)
+    background_tasks.add_task(background_record_click, short_code)
     return RedirectResponse(url=url)
